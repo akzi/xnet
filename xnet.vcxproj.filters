@@ -18,19 +18,22 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="xnet.hpp">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="detail.hpp">
+    <ClInclude Include="include\detail\detail.hpp">
       <Filter>头文件\detail</Filter>
     </ClInclude>
-    <ClInclude Include="iocp.hpp">
+    <ClInclude Include="include\detail\iocp.hpp">
+      <Filter>头文件\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="include\xnet.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="include\detail\guard.hpp">
       <Filter>头文件\detail</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="xnet.cpp">
-      <Filter>头文件\detail</Filter>
+    <ClCompile Include="src\xnet.cpp">
+      <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -18,6 +18,15 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\detail\detail.hpp" />
+    <ClInclude Include="include\detail\guard.hpp" />
+    <ClInclude Include="include\detail\iocp.hpp" />
+    <ClInclude Include="include\xnet.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\xnet.cpp" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{63092D8C-CCB9-4B4C-876D-BEE43FC8E985}</ProjectGuid>
     <RootNamespace>xnet</RootNamespace>
@@ -81,6 +90,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>$(SolutionDir)include</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -109,14 +119,6 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="detail.hpp" />
-    <ClInclude Include="iocp.hpp" />
-    <ClInclude Include="xnet.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="xnet.cpp" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

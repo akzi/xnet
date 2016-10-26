@@ -7,6 +7,7 @@ namespace xnet
 		typedef iocp::connection_impl connection_impl;
 		typedef iocp::acceptor_impl acceptor_impl;
 		typedef iocp::proactor_impl proactor_impl;
+		typedef iocp::connector_impl connector_impl;
 		typedef iocp::socket_exception socket_exception;
 	}
 }

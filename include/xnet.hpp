@@ -1,28 +1,8 @@
 #pragma once
-#include "detail.hpp"
 namespace xnet
 {
-	struct error_t
-	{
-	public:
-		error_t(const std::string &error_str)
-			:error_string(error_str)
-		{
-
-		}
-		operator bool()
-		{
-			return error_string.empty();
-		}
-		std::string to_string()
-		{
-			return error_string;
-		}
-	private:
-		std::string error_string;
-	};
+	
 	class proactor;
-
 	class connection
 	{
 	public:
@@ -53,9 +33,19 @@ namespace xnet
 		}
 
 		template<typename RECV_CALLBACK>
-		void async_recv(int len, RECV_CALLBACK callback)
+		void async_recv(uint32_t len, RECV_CALLBACK callback)
 		{
-
+			try
+			{
+				assert(len);
+				recv_callback_ = callback;
+				impl_->async_recv(len);
+			}
+			catch (std::exception &e)
+			{
+				std::cout << e.what() << std::endl;
+				recv_callback_(NULL, -1);
+			}
 		}
 		void close()
 		{
@@ -68,15 +58,12 @@ namespace xnet
 	private:
 		detail::connection_impl *impl_;
 		std::function<void(int)> send_callback_;
+		std::function<void(void *, int)> recv_callback_;
 	};
 
 	class acceptor
 	{
 	public:
-		acceptor()
-		{
-
-		}
 		~acceptor()
 		{
 			close();
@@ -88,12 +75,22 @@ namespace xnet
 		}
 
 		template<class accept_callback_t>
-		void bind(const std::string &ip, int port, accept_callback_t callback)
+		bool bind(const std::string &ip, int port, accept_callback_t callback)
 		{
-			accept_callback_ = callback;
-			impl->bind(ip, port, [this](detail::connection_impl *conn) {
-				accept_callback(conn);
-			});
+			try
+			{
+				accept_callback_ = callback;
+				impl->bind(ip, port, [this](detail::connection_impl *conn)
+				{
+					accept_callback(conn);
+				});
+			}
+			catch (std::exception& e)
+			{
+				std::cout << e.what() << std::endl;
+				return false;
+			}
+			return true;
 		}
 		void close()
 		{
@@ -104,6 +101,10 @@ namespace xnet
 			}
 		}
 	private:
+		acceptor()
+		{
+
+		}
 		friend proactor;
 
 		void accept_callback(detail::connection_impl *conn)
@@ -114,13 +115,92 @@ namespace xnet
 		std::function<void(connection &&) > accept_callback_;
 		detail::acceptor_impl *impl = NULL;
 	};
+	class connector
+	{
+	public:
+		connector(connector && _connector)
+		{
+			move(_connector);
+		}
+		bool sync_connect(const std::string &ip, int port)
+		{
+			ip_ = ip;
+			port_ = port;
+			try
+			{
+				impl_->connect(ip_, port_);
+			}
+			catch(std::exception &e)
+			{
+				std::cout << e.what() << std::endl;
+				return false;
+			}
+			return true;
+		}
+		template<typename SUCCESS_CALLBACK>
+		connector& bind_success_callback(SUCCESS_CALLBACK success_callback)
+		{
+			success_callback_ = success_callback;
+			impl_->bind_success_callback([this](detail::connection_impl *conn){ 
+				success_callback_(connection(conn));
+			});
+			return *this;
+		}
+		template<typename FAILED_CALLBACK>
+		connector& bind_fail_callback(FAILED_CALLBACK failed_callback)
+		{
+			failed_callback_ = failed_callback;
+			impl_->bind_failed_callback([this](std::string error_code)
+			{
+				failed_callback_(std::move(error_code));
+			});
+			return *this;
+		}
+	private:
+		void move(connector &_connector)
+		{
+			assert(_connector.impl_);
+			impl_ = _connector.impl_;
+			_connector.impl_ = NULL;
+			success_callback_ = _connector.success_callback_;
+			failed_callback_ = _connector.failed_callback_;
+			_connector.success_callback_ = nullptr;
+			_connector.failed_callback_ = nullptr;
+			impl_->bind_success_callback([this](detail::connection_impl *conn)
+			{
+				success_callback_(connection(conn));
+			});
+			impl_->bind_failed_callback([this](std::string error_code)
+			{
+				failed_callback_(error_code);
+			});
+		}
+		connector(const connector &) = delete;
+		connector()
+		{
+		}
+		friend proactor;
+		std::function<void(connection &&)> success_callback_;
+		std::function<void(std::string)> failed_callback_;
+		detail::connector_impl *impl_;
+		std::string ip_;
+		int port_;
 
+	};
 	class proactor
 	{
 	public:
 		proactor()
 		{
 			impl = new detail::proactor_impl;
+		}
+		~proactor()
+		{
+			if(impl)
+			{
+				impl->stop();
+				delete impl;
+			}
 		}
 		bool run()
 		{
@@ -132,7 +212,9 @@ namespace xnet
 			catch (std::exception& e)
 			{
 				std::cout << e.what() << std::endl;
+				return false;
 			}
+			return true;
 		}
 		void stop()
 		{
@@ -145,7 +227,15 @@ namespace xnet
 			acc.impl = impl->get_acceptor();
 			return acc;
 		}
+		connector get_connector()
+		{
+			connector connector_;
+			connector_.impl_ = impl->get_connector();
+			return connector_;
+		}
 	private:
+		proactor(const proactor &) = delete;
+		proactor &operator =(const proactor &) = delete;
 		detail::proactor_impl *impl;
 	};
 	

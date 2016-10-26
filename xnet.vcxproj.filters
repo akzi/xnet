@@ -13,15 +13,24 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="头文件\detail">
+      <UniqueIdentifier>{3f006117-0cc0-41d9-aa96-cb9af0e1d627}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="xnet.hpp">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="detail.hpp">
+      <Filter>头文件\detail</Filter>
+    </ClInclude>
+    <ClInclude Include="iocp.hpp">
+      <Filter>头文件\detail</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="test.cpp">
-      <Filter>头文件</Filter>
+    <ClCompile Include="xnet.cpp">
+      <Filter>头文件\detail</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

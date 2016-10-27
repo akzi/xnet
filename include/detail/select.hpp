@@ -82,6 +82,11 @@ namespace select
 
 		}
 	private:
+		friend class proactor_impl;
+		void write_callback(bool status)
+		{ 
+
+		}
 		std::function<void(void *, int)> recv_callback_;
 		std::function<void(int)> send_callback_;
 	};
@@ -244,7 +249,20 @@ namespace select
 
 			if(io_ctx.status_ == io_context::e_write)
 			{
-
+				int bytes = send_data(
+					io_ctx.fd_, 
+					io_ctx.buffer_.data() + io_ctx.write_pos_, 
+					io_ctx.to_write_ - io_ctx.write_bytes_);
+				if(bytes <= 0)
+				{
+					io_ctx.connection_->write_callback(false);
+					return;
+				}
+				io_ctx.write_bytes_ += bytes;
+				if(io_ctx.to_write_ == io_ctx.write_bytes_)
+				{
+					io_ctx.connection_->write_callback(true);
+				}
 			}
 			else if(io_ctx.status_ == io_context::e_accept)
 			{
@@ -263,6 +281,47 @@ namespace select
 
 
 	private:
+		int send_data(fd_t s_, const void *data_, size_t size_)
+		{
+#ifdef _WIN32
+			int nbytes = ::send(s_, (char*)data_, (int)size_, 0);
+			if(nbytes == SOCKET_ERROR && 
+			   WSAGetLastError() == WSAEWOULDBLOCK)
+				return 0;
+
+			return nbytes;
+
+#else
+			ssize_t nbytes = ::send(s_, data_, size_, 0);
+
+			if(nbytes == -1 && (errno == EAGAIN || 
+			   errno == EWOULDBLOCK ||errno == EINTR))
+				return 0;
+			return static_cast <int> (nbytes);
+#endif
+		}
+
+		int read_data(fd_t s_, void *data_, size_t size_)
+		{
+#ifdef _WIN32
+			return ::recv(s_, (char*)data_, (int)size_, 0);
+#else
+			const ssize_t bytes = recv(s_, data_, size_, 0);
+			if(bytes == -1)
+			{
+				assert(errno != EBADF
+					   && errno != EFAULT
+						&& errno != ENOMEM
+						&& errno != ENOTSOCK);
+				if(errno == EWOULDBLOCK || errno == EINTR)
+					errno = EAGAIN;
+			}
+
+			return static_cast <int> (bytes);
+
+#endif
+}
+
 		typedef std::vector <fd_context> fd_set_t;
 		fd_set_t fds;
 

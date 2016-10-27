@@ -16,6 +16,9 @@
     <Filter Include="头文件\detail">
       <UniqueIdentifier>{3f006117-0cc0-41d9-aa96-cb9af0e1d627}</UniqueIdentifier>
     </Filter>
+    <Filter Include="头文件\common">
+      <UniqueIdentifier>{6f8fadae-f759-4ded-afcf-33b343abf078}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\detail\detail.hpp">
@@ -27,8 +30,11 @@
     <ClInclude Include="include\xnet.hpp">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="include\detail\guard.hpp">
-      <Filter>头文件\detail</Filter>
+    <ClInclude Include="include\common\no_copy_able.hpp">
+      <Filter>头文件\common</Filter>
+    </ClInclude>
+    <ClInclude Include="include\common\guard.hpp">
+      <Filter>头文件\common</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

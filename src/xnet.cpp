@@ -6,7 +6,8 @@
 #include <cassert>
 #include <exception>
 #include <iostream>
-#include "detail/guard.hpp"
+#include "common/guard.hpp"
+#include "common/no_copy_able.hpp"
 #ifdef _WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <winsock2.h>
@@ -24,14 +25,23 @@ int main()
 {
 	xnet::proactor proactor_;
 	auto acceptor = proactor_.get_acceptor();
-	acceptor.bind("0.0.0.0", 9001, [](xnet::connection && conn) {
-		conn.async_recv(0, [](void *data, int) {});
+	assert(acceptor.bind("0.0.0.0", 9001));
+	acceptor.regist_accept_callback([](xnet::connection && conn) {
+		conn.regist_recv_callback([](void *data, int) {
+
+		});
+		conn.async_recv(10);
 	});
 	auto connector = proactor_.get_connector();
 	connector.
-		bind_fail_callback([](std::string str) { }).
-		bind_success_callback([](xnet::connection &&conn) { }).
-		sync_connect("127.0.0.1", 9001);
+		bind_fail_callback([](std::string str) {
+		std::cout << str.c_str() << std::endl;
+	}).
+		bind_success_callback([](xnet::connection &&conn) 
+	{ 
+		conn.close();
+	}).
+		sync_connect("127.0.0.1", 9002);
 
 	proactor_.run();
 	return 0;

@@ -27,3 +27,7 @@
 *.exe
 *.out
 *.app
+x64
+
+.vs
+xnet.VC.db

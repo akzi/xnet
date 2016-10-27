@@ -11,16 +11,38 @@ namespace iocp
 		explicit socket_exception(int error_code)
 			: error_code_(error_code)
 		{
-
+			get_last_error_msg();
 		}
 		explicit socket_exception(const std::string &error_str)
 			:error_str_(error_str)
 		{
 
 		}
+		const char *str()
+		{
+			return error_str_.c_str();
+		}
 	private:
+		void get_last_error_msg()
+		{
+			static TCHAR errmsg[512];
+
+			if (!FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
+				0,
+				error_code_,
+				0,
+				errmsg,
+				511,
+				NULL))
+			{
+				error_code_ = GetLastError();
+				get_last_error_msg();
+			}
+
+			error_str_ = errmsg;
+		}
 		std::string error_str_;
-		int error_code_;
+		DWORD error_code_;
 	};
 
 	class overLapped_context : OVERLAPPED
@@ -33,17 +55,26 @@ namespace iocp
 
 		enum
 		{
-			E_CLOSE = -1,
-			E_ACCEPT = 10,
-			E_CONNECT,
-			E_READ,
-			E_WRITE
-		} type_;
+			e_accept = 1,
+			e_connect = 2,
+			e_close =4,
+			e_recv = 8,
+			e_send = 16,
+			e_idle = 32,
+			e_stop = 64,
+		} ;
+		int status_ = e_idle;
 
 		std::vector<uint8_t> buffer_;
 
-		WSABUF WSABuf_;
 
+		WSABUF WSABuf_;
+		uint32_t to_recv_len_;
+		uint32_t recv_pos_;
+
+		uint32_t send_pos_;
+
+		SOCKET socket_;
 		class acceptor_impl *acceptor_ = NULL;
 
 		class connection_impl *connection_ = NULL;
@@ -52,15 +83,19 @@ namespace iocp
 
 		void reload(std::vector<uint8_t> &data)
 		{
+			send_pos_ = 0;
 			buffer_.swap(data);
 			WSABuf_.buf = (CHAR*)buffer_.data();
 			WSABuf_.len = (ULONG)buffer_.size();
 		}
 		void reload(uint32_t len)
 		{
-			buffer_.resize(len);
+			to_recv_len_ = len;
+			recv_pos_ = 0;
+			buffer_.resize(len ? len : 1024);
 			WSABuf_.buf = (CHAR*)buffer_.data();
 			WSABuf_.len = (ULONG)buffer_.size();
+			assert(buffer_.size() == (len ? len : 1024));
 		}
 	};
 
@@ -70,8 +105,8 @@ namespace iocp
 	public:
 		connection_impl(SOCKET sock)
 		{
-			overlapped_context_ = new overLapped_context;
-			overlapped_context_->connection_ = this;
+			send_overlapped_ = new overLapped_context;
+			send_overlapped_->connection_ = this;
 		}
 		~connection_impl()
 		{
@@ -79,7 +114,11 @@ namespace iocp
 		}
 		void close()
 		{
+			send_overlapped_->status_ = overLapped_context::e_close;
+			send_overlapped_->connection_ = NULL;
 
+			recv_overlapped_->status_ = overLapped_context::e_close;
+			recv_overlapped_->connection_ = NULL;
 		}
 		template<typename READCALLBACK>
 		void bind_recv_callback(READCALLBACK callback)
@@ -93,14 +132,17 @@ namespace iocp
 		}
 		void async_send(std::vector<uint8_t> &data)
 		{
+			assert(send_overlapped_->status_ ==
+				overLapped_context::e_send);
+
 			DWORD dwBytes = 0;
-			overlapped_context_->reload(data);
+			send_overlapped_->reload(data);
 			if(WSASend(socket_,
-				&overlapped_context_->WSABuf_,
+				&send_overlapped_->WSABuf_,
 				1,
 				&dwBytes,
 				0,
-				(LPOVERLAPPED)overlapped_context_,
+				(LPOVERLAPPED)send_overlapped_,
 				NULL) == SOCKET_ERROR)
 			{
 				if(WSAGetLastError() != WSA_IO_PENDING)
@@ -109,15 +151,18 @@ namespace iocp
 		}
 		void async_recv(uint32_t len)
 		{
+			assert(send_overlapped_->status_ == 
+				overLapped_context::e_idle);
+
 			DWORD dwBytes = 0, dwFlags = 0;
-			overlapped_context_->reload(len);
+			recv_overlapped_->reload(len);
 			if(WSARecv(
 				socket_,
-				&overlapped_context_->WSABuf_,
+				&recv_overlapped_->WSABuf_,
 				1,
 				&dwBytes,
 				&dwFlags,
-				(LPOVERLAPPED)overlapped_context_,
+				(LPOVERLAPPED)recv_overlapped_,
 				NULL) == SOCKET_ERROR)
 			{
 				if(WSAGetLastError() != WSA_IO_PENDING)
@@ -127,19 +172,36 @@ namespace iocp
 		}
 	private:
 		friend class proactor_impl;
-		void write_callbak(DWORD bytes)
+		void recv_callbak(bool status)
 		{
-
+			if (status)
+			{
+				send_overlapped_->status_ = overLapped_context::e_idle;
+				send_callback_((int)send_overlapped_->buffer_.size());
+			}
+			else
+			{
+				send_callback_(0);
+			}
 		}
 
-		void send_callback(DWORD bytes)
+		void send_callback(bool status)
 		{
-
+			if (status)
+			{
+				send_overlapped_->status_ = overLapped_context::e_idle;
+				send_callback_((int)send_overlapped_->buffer_.size());
+			}
+			else
+			{
+				send_callback_(0);
+			}
 		}
 		std::function<void(void *, int)> recv_callback_;
 		std::function<void(int)> send_callback_;
 
-		overLapped_context *overlapped_context_ = NULL;
+		overLapped_context *send_overlapped_ = NULL;
+		overLapped_context *recv_overlapped_ = NULL;
 		SOCKET socket_ = INVALID_SOCKET;
 	};
 	class acceptor_impl
@@ -148,7 +210,7 @@ namespace iocp
 		acceptor_impl()
 		{
 			context_ = new overLapped_context;
-			context_->type_ = overLapped_context::E_ACCEPT;
+			context_->status_ = overLapped_context::e_accept;
 		}
 		~acceptor_impl()
 		{
@@ -158,9 +220,12 @@ namespace iocp
 				closesocket(accept_socket_);
 		}
 		template<class accept_callback_t>
-		void bind(const std::string &ip, int port, accept_callback_t callback)
+		void regist_accept_callback(accept_callback_t callback)
 		{
 			acceptor_callback_ = callback;
+		}
+		void bind(const std::string &ip, int port)
+		{
 			if(listener_sock_ != INVALID_SOCKET)
 				closesocket(listener_sock_);
 			listener_sock_ = WSASocket(AF_INET,
@@ -218,8 +283,13 @@ namespace iocp
 			}
 			
 		}
-		void accept_callback()
+		void accept_callback(bool status)
 		{
+			if (status == false)
+			{
+				std::cout << "acceptor callback,error:"<< WSAGetLastError() << std::endl;
+				return;
+			}
 			if(setsockopt(accept_socket_,
 				SOL_SOCKET,
 				SO_UPDATE_ACCEPT_CONTEXT,
@@ -235,7 +305,8 @@ namespace iocp
 		}
 		void close()
 		{
-			context_->type_ = overLapped_context::E_CLOSE;
+			context_->status_ = overLapped_context::e_close;
+			context_->acceptor_ = nullptr;
 			delete this;
 		}
 	private:
@@ -253,7 +324,7 @@ namespace iocp
 
 			if(accept_socket_ == INVALID_SOCKET)
 			{
-				throw socket_exception(GetLastError());
+				throw socket_exception(WSAGetLastError());
 			}
 			
 			DWORD address_size = sizeof(sockaddr_in) + 16;
@@ -267,10 +338,10 @@ namespace iocp
 				&bytesReceived_,
 				(OVERLAPPED*)context_) == false)
 			{
-				DWORD lastError = GetLastError();
-				if(lastError != ERROR_IO_PENDING)
+				DWORD error_code = WSAGetLastError();
+				if(error_code != ERROR_IO_PENDING)
 				{
-					throw socket_exception(GetLastError());
+					throw socket_exception(error_code);
 				}
 			}
 		}
@@ -305,7 +376,7 @@ namespace iocp
 		{
 			failed_callback_ = callback;
 		}
-		void connect(const std::string &ip, int port)
+		void sync_connect(const std::string &ip, int port)
 		{
 			if(socket_ != INVALID_SOCKET)
 				closesocket(socket_);
@@ -363,14 +434,20 @@ namespace iocp
 			socket_address.sin_port = htons(port);
 
 			DWORD bytes = 0;
-			const int connect_ex_result = connectex_func_(socket_,
-				reinterpret_cast<SOCKADDR*>(&socket_address),
-				sizeof(socket_address),
-				NULL,
-				0,
-				&bytes,
-				reinterpret_cast<LPOVERLAPPED>(overLapped_context_)
-			);
+			overLapped_context_->status_ = overLapped_context::e_connect;
+			overLapped_context_->connector_ = this;
+
+			if (!connectex_func_(socket_,
+				reinterpret_cast<SOCKADDR*>(&socket_address), 
+				sizeof(socket_address), 
+				NULL, 
+				0, 
+				&bytes, 
+				reinterpret_cast<LPOVERLAPPED>(overLapped_context_)))
+			{
+				if(WSAGetLastError() != ERROR_IO_PENDING)
+					throw socket_exception(WSAGetLastError());
+			}
 		}
 		void close()
 		{
@@ -379,7 +456,7 @@ namespace iocp
 
 			socket_ = INVALID_SOCKET;
 			overLapped_context_->connector_ = NULL;
-			overLapped_context_->type_ = overLapped_context::E_CLOSE;
+			overLapped_context_->status_ = overLapped_context::e_close;
 			delete this;
 		}
 	private:
@@ -388,7 +465,18 @@ namespace iocp
 		{
 			if(result_ == false)
 			{
-				failed_callback_("connect failed");
+				char errmsg[512] = {0};
+				auto error_code = WSAGetLastError();
+				if (!FormatMessage(
+					FORMAT_MESSAGE_FROM_SYSTEM,
+					0,error_code,0,errmsg,511,NULL))
+					failed_callback_("connect failed");
+				else
+				{
+					auto str = std::string(errmsg, strlen(errmsg));
+					assert(failed_callback_);
+					failed_callback_(str);
+				}
 				return;
 			}
 			SOCKET sock = socket_;
@@ -437,40 +525,38 @@ namespace iocp
 				overLapped_context *overlapped = NULL;
 				DWORD bytes = 0;
 				DWORD timeout = INFINITE;
-
-				if(FALSE == GetQueuedCompletionStatus(
+				BOOL status = GetQueuedCompletionStatus(
 					IOCompletionPort_,
 					&bytes,
 					(PULONG_PTR)&key,
 					(LPOVERLAPPED*)&overlapped,
-					timeout))
+					timeout);
+
+				if(status == FALSE )
 				{
 					if(GetLastError() == WAIT_TIMEOUT)
 						continue;
 				}
-				assert(overlapped);
-
-				switch(overlapped->type_)
+				if (overlapped->status_ == overLapped_context::e_stop) 
 				{
-				case overLapped_context::E_ACCEPT:
-					overlapped->acceptor_->accept_callback();
-					break;
-				case overLapped_context::E_READ:
-					overlapped->connection_->send_callback(bytes);
-					break;
-				case overLapped_context::E_WRITE:
-					overlapped->connection_->write_callbak(bytes);
-					break;
-				case overLapped_context::E_CLOSE:
 					delete overlapped;
-				default:
 					break;
 				}
+				assert(overlapped);
+				if (status == FALSE)
+					handle_completion_failed(overlapped, bytes);
+				else
+					handle_completion_success(overlapped, bytes);
 			}
 		}
 		void stop()
 		{
 			is_stop_ = true;
+			overLapped_context *overlapped = new overLapped_context;
+			overlapped->status_ = overLapped_context::e_stop;
+			PostQueuedCompletionStatus(IOCompletionPort_, 
+				0, 
+				(ULONG_PTR)this,(LPOVERLAPPED)overlapped);
 		}
 		acceptor_impl *get_acceptor()
 		{
@@ -487,9 +573,141 @@ namespace iocp
 			return acceptor;
 		}
 	private:
+		void continue_send(overLapped_context *overlapped, DWORD bytes)
+		{
+			DWORD dwBytes = 0;
+
+			overlapped->send_pos_ += bytes;
+
+			overlapped->WSABuf_.buf = 
+				(char *)overlapped->buffer_.data() + 
+				overlapped->send_pos_;
+
+			overlapped->WSABuf_.len =
+				(ULONG)overlapped->buffer_.size() - 
+				overlapped->send_pos_;
+
+			if (WSASend(overlapped->socket_,
+				&overlapped->WSABuf_,
+				1,
+				&dwBytes,
+				0,
+				(LPOVERLAPPED)overlapped,
+				NULL) == SOCKET_ERROR)
+			{
+				if (WSAGetLastError() != WSA_IO_PENDING)
+					throw socket_exception(WSAGetLastError());
+			}
+		}
+		void continue_recv(overLapped_context * overlapped, DWORD bytes)
+		{
+			DWORD dwBytes = 0, 
+				dwFlags = 0;
+
+			overlapped->recv_pos_ += bytes;
+
+			overlapped->WSABuf_.buf = 
+				(char*)overlapped->buffer_.data() + 
+				overlapped->recv_pos_;
+
+			overlapped->WSABuf_.len = 
+				overlapped->to_recv_len_ - 
+				overlapped->recv_pos_;
+
+			if (WSARecv(
+				overlapped->socket_,
+				&overlapped->WSABuf_,
+				1,
+				&dwBytes,
+				&dwFlags,
+				(LPOVERLAPPED)overlapped,
+				NULL) == SOCKET_ERROR)
+			{
+				if (WSAGetLastError() != WSA_IO_PENDING)
+					throw socket_exception(WSAGetLastError());
+			}
+		}
+		void handle_completion_failed(overLapped_context * overlapped, DWORD bytes)
+		{
+			if (overlapped->status_ == overLapped_context::e_recv)
+			{
+				overlapped->connection_->recv_callbak(false);
+			}
+			else if (overlapped->status_ == overLapped_context::e_send)
+			{
+				overlapped->connection_->send_callback(false);
+			}
+			else if (overlapped->status_ == overLapped_context::e_accept)
+			{
+				overlapped->acceptor_->accept_callback(false);
+			}
+			else if (overlapped->status_ & overLapped_context::e_close &&
+				overlapped->status_ & overLapped_context::e_send)
+			{
+				closesocket(overlapped->socket_);
+				delete overlapped;
+			}
+			else if (overlapped->status_ == overLapped_context::e_close)
+			{
+				if (overlapped->socket_ != INVALID_SOCKET)
+					closesocket(overlapped->socket_);
+				delete overlapped;
+
+			}else if (overlapped->status_ == overLapped_context::e_connect)
+			{
+				overlapped->connector_->connect_callback(false);
+			}
+		}
+
+		void handle_completion_success(overLapped_context * overlapped, DWORD bytes)
+		{
+			if (overlapped->status_ == overLapped_context::e_recv)
+			{
+				if (overlapped->to_recv_len_ > bytes)
+					continue_recv(overlapped, bytes);
+				overlapped->connection_->recv_callbak(true);
+			}
+			else if (overlapped->status_ == overLapped_context::e_send)
+			{
+				if (overlapped->WSABuf_.len > bytes)
+					continue_send(overlapped, bytes);
+				else
+					overlapped->connection_->send_callback(true);
+
+			}
+			else if (overlapped->status_ == overLapped_context::e_accept)
+			{
+				overlapped->acceptor_->accept_callback(true);
+
+			}
+			else if (overlapped->status_ & overLapped_context::e_close &&
+				overlapped->status_ & overLapped_context::e_send)
+			{
+				if (overlapped->WSABuf_.len > bytes)
+				{
+					continue_send(overlapped, bytes);
+				}
+				else
+				{
+					closesocket(overlapped->socket_);
+					delete overlapped;
+				}
+			}
+			
+			else if (overlapped->status_ == overLapped_context::e_close)
+			{
+				if (overlapped->socket_ != INVALID_SOCKET)
+					closesocket(overlapped->socket_);
+				delete overlapped;
+			}
+			else if (overlapped->status_ == overLapped_context::e_connect)
+			{
+				overlapped->connector_->connect_callback(false);
+			}
+		}
+
 		bool is_stop_ = false;
 		HANDLE IOCompletionPort_ = NULL;
-
 	};
 }
 }

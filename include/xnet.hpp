@@ -1,4 +1,5 @@
 #pragma once
+#include "detail/detail.hpp"
 namespace xnet
 {
 	
@@ -6,14 +7,19 @@ namespace xnet
 	class connection:public no_copy_able
 	{
 	public:
+		connection()
+		{
+
+		}
 		connection(detail::connection_impl *impl)
 			:impl_(impl)
 		{
 			assert(impl);
+			init();
 		}
 		connection(connection &&_connection)
 		{
-
+			reset_move(std::move(_connection));
 		}
 		~connection()
 		{
@@ -23,19 +29,26 @@ namespace xnet
 		connection &regist_send_callback(T callback)
 		{
 			send_callback_ = callback;
+			return *this;
 		}
 		template<typename RECV_CALLBACK>
-		void regist_recv_callback(RECV_CALLBACK callback)
+		connection &regist_recv_callback(RECV_CALLBACK callback)
 		{
 			recv_callback_ = callback;
+			return *this;
 		}
 		void async_send(const void *data, int len)
 		{
+			assert(len);
+			assert(data);
+			assert(impl_);
+
+			std::vector<uint8_t> buffer_;
+			buffer_.resize(len);
+			memcpy(buffer_.data(), data, len);
+
 			try
 			{
-				std::vector<uint8_t> buffer_;
-				buffer_.resize(len);
-				memcpy(buffer_.data(), data, len);
 				impl_->async_send(buffer_);
 			}
 			catch (std::exception& e)
@@ -50,23 +63,25 @@ namespace xnet
 			try
 			{
 				assert(len);
+				assert(impl_);
 				 impl_->async_recv(len);
 			}
-			catch (std::exception &e)
+			catch (detail::socket_exception &e)
 			{
-				std::cout << e.what() << std::endl;
+				std::cout << e.str() << std::endl;
 				recv_callback_(NULL, -1);
 			}
 		}
-		void async_some()
+		void async_recv_some()
 		{
 			try
 			{
+				assert(impl_);
 				impl_->async_recv(0);
 			}
-			catch (std::exception &e)
+			catch (detail::socket_exception &e)
 			{
-				std::cout << e.what() << std::endl;
+				std::cout << e.str() << std::endl;
 				recv_callback_(NULL, -1);
 			}
 		}
@@ -78,10 +93,38 @@ namespace xnet
 				impl_ = NULL;
 			}
 		}
+		bool valid()
+		{
+			return !!impl_;
+		}
 	private:
-		detail::connection_impl *impl_;
+		void reset_move(connection && _conn)
+		{
+			if (this != &_conn)
+			{
+				impl_ = _conn.impl_;
+				recv_callback_ = std::move(_conn.recv_callback_);
+				send_callback_ = std::move(_conn.send_callback_);
+				init();
+				_conn.impl_ = NULL;
+			}
+		}
+		void init()
+		{
+			impl_->bind_recv_callback([this](void *data, int len) {
+				assert(recv_callback_);
+				recv_callback_(data, len);
+			});
+			impl_->bind_send_callback([this](int len) {
+				assert(send_callback_);
+				send_callback_(len);
+			});
+		}
+
+		detail::connection_impl *impl_ = NULL;
 		std::function<void(int)> send_callback_;
 		std::function<void(void *, int)> recv_callback_;
+		
 	};
 
 	class acceptor : public no_copy_able

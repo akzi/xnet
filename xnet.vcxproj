@@ -23,6 +23,7 @@
     <ClInclude Include="include\common\no_copy_able.hpp" />
     <ClInclude Include="include\detail\detail.hpp" />
     <ClInclude Include="include\detail\iocp.hpp" />
+    <ClInclude Include="include\detail\select.hpp" />
     <ClInclude Include="include\xnet.hpp" />
   </ItemGroup>
   <ItemGroup>

@@ -155,9 +155,9 @@ namespace xnet
 			{
 				impl_->bind(ip, port);
 			}
-			catch (std::exception& e)
+			catch (detail::socket_exception &e)
 			{
-				std::cout << e.what() << std::endl;
+				std::cout << e.str()<< std::endl;
 				return false;
 			}
 			return true;
@@ -228,13 +228,6 @@ namespace xnet
 					throw e;
 				else
 					failed_callback_(e.str());
-			}
-			catch(std::exception &e)
-			{
-				if (!failed_callback_)
-					throw e;
-				else
-					failed_callback_(e.what());
 			}
 		}
 		template<typename SUCCESS_CALLBACK>
@@ -322,9 +315,9 @@ namespace xnet
 			{
 				impl->run();
 			}
-			catch (std::exception& e)
+			catch (detail::socket_exception& e)
 			{
-				std::cout << e.what() << std::endl;
+				std::cout << e.str() << std::endl;
 				return false;
 			}
 			return true;

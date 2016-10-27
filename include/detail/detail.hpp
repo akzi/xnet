@@ -19,16 +19,27 @@
 #endif
 #include "detail/detail.hpp"
 #include "xnet.hpp"
+#include "detail/select.hpp"
 #ifdef _WIN32
+#define WIN_SELECT
 namespace xnet
 {
 	namespace detail
 	{
+#ifdef WIN_SELECT
+		typedef select::connection_impl connection_impl;
+		typedef select::acceptor_impl acceptor_impl;
+		typedef select::proactor_impl proactor_impl;
+		typedef select::connector_impl connector_impl;
+		typedef select::socket_exception socket_exception;
+#elif IOCP
 		typedef iocp::connection_impl connection_impl;
 		typedef iocp::acceptor_impl acceptor_impl;
 		typedef iocp::proactor_impl proactor_impl;
 		typedef iocp::connector_impl connector_impl;
 		typedef iocp::socket_exception socket_exception;
+#endif
+		
 	}
 }
 #endif

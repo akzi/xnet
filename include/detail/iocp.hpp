@@ -218,7 +218,8 @@ namespace iocp
 			recv_overlapped_->status_ = overLapped_context::e_idle;
 			if (status)
 			{
-				recv_callback_(recv_overlapped_->buffer_.data(), recv_overlapped_->recv_bytes_);
+				recv_callback_(recv_overlapped_->buffer_.data(), 
+							   recv_overlapped_->recv_bytes_);
 			}
 			else
 			{
@@ -250,12 +251,18 @@ namespace iocp
 	public:
 		acceptor_impl()
 		{
-			context_ = new overLapped_context;
-			context_->acceptor_ = this;
-			context_->status_ = overLapped_context::e_accept;
+			overLapped_context_ = new overLapped_context;
+			overLapped_context_->acceptor_ = this;
+			overLapped_context_->status_ = overLapped_context::e_accept;
 		}
 		~acceptor_impl()
 		{
+			if(overLapped_context_)
+			{
+				overLapped_context_->status_ = overLapped_context::e_close;
+				overLapped_context_->acceptor_ = nullptr;
+				overLapped_context_->socket_ = INVALID_SOCKET;
+			}
 			if(listener_sock_ != INVALID_SOCKET)
 				closesocket(listener_sock_);
 			if(accept_socket_ != INVALID_SOCKET)
@@ -319,47 +326,46 @@ namespace iocp
 			if(::CreateIoCompletionPort((HANDLE)listener_sock_,
 				IOCompletionPort_,
 				0,
-				0) != IOCompletionPort_)
+				1) != IOCompletionPort_)
 			{
 				throw socket_exception(WSAGetLastError());
 			}
 			do_accept();
 		}
+		
+	private:
+		friend class proactor_impl;
 		void accept_callback(bool status)
 		{
-			if (status == false)
+			if(status == false)
 			{
-				std::cout << "acceptor callback,error:"<< WSAGetLastError() << std::endl;
+				std::cout << "acceptor callback,error:" << WSAGetLastError() << std::endl;
 				return;
 			}
 			if(setsockopt(accept_socket_,
-				SOL_SOCKET,
-				SO_UPDATE_ACCEPT_CONTEXT,
-				(char *)&listener_sock_,
-				sizeof(listener_sock_)) != 0)
+			   SOL_SOCKET,
+			   SO_UPDATE_ACCEPT_CONTEXT,
+			   (char *)&listener_sock_,
+			   sizeof(listener_sock_)) != 0)
 			{
 				throw socket_exception(WSAGetLastError());
 				return;
 			}
 			connection_impl *conn = new connection_impl(accept_socket_);
-			if (::CreateIoCompletionPort((HANDLE)accept_socket_, 
-				IOCompletionPort_, 0, 0) != IOCompletionPort_)
+			if(::CreateIoCompletionPort((HANDLE)accept_socket_,
+			   IOCompletionPort_, 0, 0) != IOCompletionPort_)
 			{
 				throw socket_exception(WSAGetLastError());
 			}
 			assert(acceptor_callback_);
-			acceptor_callback_(conn);
 			accept_socket_ = INVALID_SOCKET;
 			do_accept();
+			acceptor_callback_(conn);
 		}
 		void close()
 		{
-			context_->status_ = overLapped_context::e_close;
-			context_->acceptor_ = nullptr;
 			delete this;
 		}
-	private:
-		friend class proactor_impl;
 		void do_accept()
 		{
 			if(accept_socket_ != INVALID_SOCKET)
@@ -376,15 +382,15 @@ namespace iocp
 				throw socket_exception(WSAGetLastError());
 			}
 			DWORD address_size = sizeof(sockaddr_in) + 16;
-			char addr_buffer[128];
+			
 			if(acceptex_func_(listener_sock_,
 				accept_socket_,
-				addr_buffer,
-				128 - address_size * 2,
+				addr_buffer_,
+				0,
 				address_size,
 				address_size,
 				&bytesReceived_,
-				(OVERLAPPED*)context_) == FALSE)
+				(OVERLAPPED*)overLapped_context_) == FALSE)
 			{
 				DWORD error_code = WSAGetLastError();
 				if(error_code != ERROR_IO_PENDING)
@@ -397,12 +403,13 @@ namespace iocp
 				accept_callback(true);
 			}
 		}
+		char addr_buffer_[128];
 		DWORD bytesReceived_ = 0;
 		LPFN_ACCEPTEX acceptex_func_ = NULL;
 		SOCKET listener_sock_ = INVALID_SOCKET;
 		SOCKET accept_socket_ = INVALID_SOCKET;
 		HANDLE IOCompletionPort_ = NULL;
-		overLapped_context *context_ = NULL;
+		overLapped_context *overLapped_context_ = NULL;
 		std::function<void(connection_impl*)> acceptor_callback_;
 	};
 
@@ -563,7 +570,7 @@ namespace iocp
 				}
 			});
 			IOCompletionPort_ = CreateIoCompletionPort(
-				INVALID_HANDLE_VALUE, NULL, 0, 0);
+				INVALID_HANDLE_VALUE, NULL, 0, 1);
 			if(IOCompletionPort_ == NULL)
 			{
 				throw socket_exception(GetLastError());

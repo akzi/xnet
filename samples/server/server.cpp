@@ -17,6 +17,7 @@ int main()
 	acceptor.regist_accept_callback(
 		[&](xnet::connection &&conn) 
 	{
+		std::cout << "new conn" << std::endl;
 		conn.regist_recv_callback([id, &conns,&rsp, &count](void *data,int len) 
 		{
 			if (len == -1)
@@ -26,7 +27,6 @@ int main()
 				conns.erase(conns.find(id));
 				return;
 			}
-			if (len == 0);
 
 			std::string str((char*)data, len);
 			std::cout << str.c_str();
@@ -43,6 +43,7 @@ int main()
 		conns.emplace(id,std::move(conn));
 		conns[id].async_recv_some();
 		id++;
+		acceptor.close();
 	});
 	acceptor.bind("0.0.0.0", 9001);
 

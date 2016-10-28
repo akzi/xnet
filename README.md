@@ -2,12 +2,12 @@
 sample async network lib
 
 easy to use.
-
+```cpp
 int main()
 {
 	xnet::proactor proactor_;
 	auto acceptor = proactor_.get_acceptor();
-    auto ret = acceptor.bind("0.0.0.0", 9001);
+    	auto ret = acceptor.bind("0.0.0.0", 9001);
 	assert(ret);
 	acceptor.regist_accept_callback([](xnet::connection && conn) {
 		//conn accept
@@ -32,3 +32,4 @@ int main()
 	proactor_.run();
 	return 0;
 }
+```

@@ -332,7 +332,10 @@ namespace iocp
 			}
 			do_accept();
 		}
-		
+		void close()
+		{
+			delete this;
+		}
 	private:
 		friend class proactor_impl;
 		void accept_callback(bool status)
@@ -362,10 +365,7 @@ namespace iocp
 			do_accept();
 			acceptor_callback_(conn);
 		}
-		void close()
-		{
-			delete this;
-		}
+		
 		void do_accept()
 		{
 			if(accept_socket_ != INVALID_SOCKET)

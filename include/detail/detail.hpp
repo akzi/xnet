@@ -11,6 +11,7 @@
 #include "common/no_copy_able.hpp"
 #ifdef _WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
+#define FD_SETSIZE      1024
 #include <winsock2.h>
 #include <mswsock.h>
 #pragma comment(lib, "ws2_32.lib")
@@ -21,12 +22,13 @@
 #include "xnet.hpp"
 #include "detail/select.hpp"
 #ifdef _WIN32
-#define WIN_SELECT
+#define WIN_SELECT 1
+#define IOCP 1
 namespace xnet
 {
 	namespace detail
 	{
-#ifdef WIN_SELECT
+#if WIN_SELECT
 		typedef select::connection_impl connection_impl;
 		typedef select::acceptor_impl acceptor_impl;
 		typedef select::proactor_impl proactor_impl;

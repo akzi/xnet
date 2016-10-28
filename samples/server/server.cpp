@@ -1,50 +1,57 @@
 #include "../../include/xnet.hpp"
-
+#include <fstream>
 int main()
 {
 	xnet::proactor proactor;
 	std::map<int, xnet::connection> conns;
 	int id = 0;
 	auto acceptor = proactor.get_acceptor();
-	std::string rsp =
-		"HTTP/1.1 200 OK\r\n"
-		"Content-Type: text/html\r\n"
-		"Connection: close\r\n"
-		"Content-Length: 5\r\n"
-		"\r\n"
-		"hello";
-	int count = 0;
+	std::fstream is;
+	is.open("rsp.txt");
+	if(!is)
+		return 0;
+	std::string rsp((std::istreambuf_iterator<char>(is)),
+					std::istreambuf_iterator<char>());
+
+	int send = 0;
+	int recv = 0;
 	acceptor.regist_accept_callback(
 		[&](xnet::connection &&conn) 
 	{
 		//accept connection
-		std::cout << "new conn" << std::endl;
-		conn.regist_recv_callback([id, &conns,&rsp, &count](void *data,int len) 
+		conn.regist_recv_callback([id, &conns,&rsp, &send, &recv](void *data,int len)
 		{
 			//recv callback .
-			if (len == -1)
+			if (len <= 0)
 			{
-				std::cout << "recv failed" << std::endl;
 				conns[id].close();
 				conns.erase(conns.find(id));
 				return;
 			}
 
-			std::string str((char*)data, len);
-			//std::cout << str.c_str();
+			//std::string str((char*)data, len);
+			std::cout << (char*)data;
 			//async send data.
+			//conns[id].async_send(data,len);
 			conns[id].async_send(rsp.c_str(), rsp.size());
-			count += len;
-			conns[id].close();
-			
+			conns[id].async_recv_some();
+ 			//conns[id].close();
+ 			//conns.erase(conns.find(id));
 		});
-		conn.regist_send_callback([](int len) {
+		conn.regist_send_callback([&](int len) {
+			
+			if(len == -1)
+			{
+				conns[id].close();
+				conns.erase(conns.find(id));
+				return;
+			}
 			//async send data call back here
-			std::cout << "send callback," << len << std::endl;
 		});
 
 		conns.emplace(id,std::move(conn));
 		conns[id].async_recv_some();
+		//std::cout << "id " << id << "recv " << ++recv << std::endl;
 		id++;
 		//acceptor.close();
 	});

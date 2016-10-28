@@ -25,10 +25,16 @@ namespace select
 		int64_t error_code_ = 0;
 		std::string error_str_;
 	};
-	
+
 	class io_context
 	{
 	public:
+		io_context()
+		{
+		}
+		~io_context()
+		{
+		}
 		void reload(std::vector<uint8_t>& data)
 		{
 			to_send_ = (uint32_t)data.size();
@@ -86,14 +92,17 @@ namespace select
 			recv_ctx_->connection_ = this;
 			recv_ctx_->socket_ = socket_;
 		}
-		
+		~connection_impl()
+		{
+
+		}
 		void bind_recv_callback(std::function<void(void* ,int)> callback)
 		{
-			recv_callback_ = callback;
+			recv_callback_handle_ = callback;
 		}
 		void bind_send_callback(std::function<void(int)> callback)
 		{
-			send_callback_ = callback;
+			send_callback_handle_ = callback;
 		}
 		void async_send(std::vector<uint8_t> &data)
 		{
@@ -112,7 +121,6 @@ namespace select
 			recv_ctx_->status_ = io_context::e_recv;
 			if (recv_ctx_->last_status_ == io_context::e_recv)
 				return;
-			else
 			assert(regist_recv_ctx_);
 			regist_recv_ctx_(recv_ctx_);
 		}
@@ -120,67 +128,60 @@ namespace select
 		{
 			if (send_ctx_->status_ == io_context::e_idle)
 			{
-				if (in_callback_)
-					close_flag_ = true;
-				else
-				{
-					del_io_context_(recv_ctx_);
-					delete this;
-				}
+				del_io_context_(recv_ctx_);
 
-			}else if (send_ctx_->status_ == io_context::e_send)
+			}
+			else if (send_ctx_->status_ == io_context::e_send)
 			{
 				send_ctx_->status_ |= io_context::e_close;
 			}
-			
+			close_flag_ = true;
+		}
+		void send_done(bool status)
+		{
+			send_ctx_->last_status_ = send_ctx_->status_;
+			send_ctx_->status_ = io_context::e_idle;
+			if(status)
+				send_callback_handle_(send_ctx_->send_bytes_);
+			else
+				send_callback_handle_(-1);
+
+			if(status && send_ctx_->status_ != io_context::e_send)
+			{
+				send_ctx_->last_status_ = io_context::e_idle;
+				unregist_send_ctx_(send_ctx_);
+			}
+			if(close_flag_)
+			{
+				del_io_context_(recv_ctx_);
+			}
 		}
 	private:
 		friend class proactor_impl;
 		friend class acceptor_impl;
 		void send_callback(bool status)
-		{ 
-			send_ctx_->last_status_ = send_ctx_->status_;
-			send_ctx_->status_ = io_context::e_idle;
-			in_callback_ = true;
-			if(status)
-				send_callback_(send_ctx_->send_bytes_);
-			else
-				send_callback_(-1);
-
-			if (status && send_ctx_->status_ != io_context::e_send)
-			{
-				unregist_send_ctx_(send_ctx_);
-			}
-			in_callback_ = false;
-			if (close_flag_)
-			{
-				del_io_context_(recv_ctx_);
-				delete this;
-			}
+		{
+			send_done(status);
 		}
 		void recv_callback(bool status)
 		{
 			recv_ctx_->last_status_ = recv_ctx_->status_;
 			recv_ctx_->status_ = io_context::e_idle;
-			in_callback_ = true;
 			recv_ctx_->buffer_.push_back('\0');
 			if (status)
-				recv_callback_(recv_ctx_->buffer_.data(), recv_ctx_->recv_bytes_);
+				recv_callback_handle_(recv_ctx_->buffer_.data(), recv_ctx_->recv_bytes_);
 			else
-				recv_callback_(NULL, -1);
+				recv_callback_handle_(NULL, -1);
 			if (status && recv_ctx_->status_ != io_context::e_recv)
 			{
 				unregist_recv_ctx_(recv_ctx_);
 			}
-			in_callback_ = false;
 			if (close_flag_)
 			{
 				del_io_context_(recv_ctx_);
-				delete this;
 			}
 		}
 		SOCKET socket_ = INVALID_SOCKET;
-		bool in_callback_ = false;
 		bool close_flag_ = false;
 		io_context *send_ctx_ = NULL;
 		io_context *recv_ctx_ = NULL;
@@ -191,8 +192,8 @@ namespace select
 		std::function<void(io_context*)> unregist_recv_ctx_;
 		std::function<void(io_context*)> del_io_context_;
 
-		std::function<void(void *, int)> recv_callback_;
-		std::function<void(int)> send_callback_;
+		std::function<void(void *, int)> recv_callback_handle_;
+		std::function<void(int)> send_callback_handle_;
 	};
 	class acceptor_impl
 	{
@@ -226,7 +227,7 @@ namespace select
 			if(::bind(socket_, (struct sockaddr*)&addr, sizeof(addr)))
 				throw socket_exception(GetLastError());
 			
-			if(listen(socket_, 5))
+			if(listen(socket_, SOMAXCONN))
 				throw socket_exception(GetLastError());
 			
 			char on = 1;
@@ -254,22 +255,28 @@ namespace select
 
 		void on_accept(bool result)
 		{ 
-			if (!result)
+			if(!result)
 			{
 				close();
 				return;
-			}			
-			SOCKET sock = ::accept(socket_, NULL, NULL);
-			if (sock == INVALID_SOCKET)
-				return;
-			auto conn = new connection_impl(sock);
-			conn->regist_recv_ctx_ = regist_recv_ctx_;
-			conn->unregist_recv_ctx_ = unregist_recv_ctx_;
-			conn->regist_send_ctx_ = regist_send_ctx_;
-			conn->unregist_send_ctx_ = unregist_send_ctx_;
-			conn->del_io_context_ = del_io_context_;
-			assert(conn);
-			acceptor_callback_(conn);
+			}
+			do 
+			{
+				SOCKET sock = ::accept(socket_, NULL, NULL);
+				if(sock == INVALID_SOCKET)
+					return;
+				auto conn = new connection_impl(sock);
+				assert(conn);
+				conn->regist_recv_ctx_ = regist_recv_ctx_;
+				conn->unregist_recv_ctx_ = unregist_recv_ctx_;
+				conn->regist_send_ctx_ = regist_send_ctx_;
+				conn->unregist_send_ctx_ = unregist_send_ctx_;
+				conn->del_io_context_ = del_io_context_;
+				acceptor_callback_(conn);
+
+			} while (true);
+			
+			
 		}
 
 		SOCKET socket_ = INVALID_SOCKET;
@@ -565,12 +572,20 @@ namespace select
 				if (bytes <= 0)
 				{
 					io_ctx.connection_->recv_callback(false);
+					if(io_ctx.connection_->close_flag_)
+					{
+						delete io_ctx.connection_;
+					}
 					return;
 				}
 				io_ctx.recv_bytes_ += bytes;
 				if(io_ctx.to_recv_ <= io_ctx.recv_bytes_)
 				{
 					io_ctx.connection_->recv_callback(true);
+					if(io_ctx.connection_->close_flag_)
+					{
+						delete io_ctx.connection_;
+					}
 				}
 			}
 			else if (io_ctx.status_ == io_context::e_accept)
@@ -630,7 +645,7 @@ namespace select
 					FD_CLR(io_ctx.socket_, &except_fds_);
 					shutdown(io_ctx.socket_, SD_SEND);
 					closesocket(io_ctx.socket_);
-					io_ctx.socket_ = INVALID_SOCKET;
+					fd_ctx.socket_ = INVALID_SOCKET;
 					retired = true;
 					return;
 				}
@@ -649,7 +664,7 @@ namespace select
 			if (fd_ctx.send_ctx_ )
 			{
 				if(fd_ctx.send_ctx_->status_ == io_context::e_send)
-					fd_ctx.send_ctx_->connection_->send_callback(false);
+					fd_ctx.send_ctx_->connection_->send_done(false);
 
 				else if (fd_ctx.send_ctx_->status_ & io_context::e_send &&
 					fd_ctx.send_ctx_->status_ & io_context::e_close)

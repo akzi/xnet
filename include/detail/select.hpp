@@ -1,11 +1,5 @@
 #include <algorithm>
-#ifdef _WIN32
-#define fd_t SOCKET
-#elif
-#define INVALID_SOCKET -1
-typedef int fd_t;
-#endif
-
+#include <ws2tcpip.h>//socklen_t 
 
 namespace xnet
 {
@@ -13,7 +7,12 @@ namespace select
 {
 	class socket_exception :std::exception
 	{
-	public:
+	public: 
+		socket_exception(int64_t error_code)
+			:error_code_(error_code)
+		{
+
+		}
 		socket_exception()
 		{
 
@@ -23,33 +22,49 @@ namespace select
 			return error_str_.c_str();
 		}
 	private:
+		int64_t error_code_ = 0;
 		std::string error_str_;
 	};
 	
 	class io_context
 	{
 	public:
-		enum
+		void reload(std::vector<uint8_t>& data)
 		{
-			e_read = 1,
-			e_write = 2,
+			to_send_ = (uint32_t)data.size();
+			send_bytes_ = 0;
+			buffer_.swap(data);
+		}
+		void reload(uint32_t len)
+		{
+			to_recv_ = len;
+			recv_bytes_ = 0;
+			buffer_.resize(1 + (len ? len : recv_some_));
+		}
+
+		enum status_t
+		{
+			e_recv = 1,
+			e_send = 2,
 			e_connect = 4,
 			e_accept = 8,
 			e_close = 16,
 			e_idle = 32,
 			e_stop = 64
 
-		}status_;
+		};
+		int status_ = e_idle;
+		int last_status_ = e_idle;
 
-		fd_t fd_ = INVALID_SOCKET;
+		SOCKET socket_ = INVALID_SOCKET;
 		std::vector<uint8_t> buffer_;
-		uint32_t to_read_;
-		uint32_t read_bytes_;
-		uint32_t read_pos_;
+		uint32_t to_recv_;
+		uint32_t recv_bytes_;
 
-		uint32_t to_write_;
-		uint32_t write_bytes_;
-		uint32_t write_pos_;
+		uint32_t to_send_;
+		uint32_t send_bytes_;
+
+		const int recv_some_ = 1024;
 
 		class connection_impl *connection_ = NULL;
 		class acceptor_impl *acceptor_ = NULL;
@@ -59,69 +74,221 @@ namespace select
 	class connection_impl
 	{
 	public:
-		void close()
+		connection_impl(SOCKET _socket)
+			:socket_(_socket)
 		{
-
+			send_ctx_ = new io_context;
+			recv_ctx_ = new io_context;
+			assert(send_ctx_);
+			assert(recv_ctx_);
+			send_ctx_->connection_ = this;
+			send_ctx_->socket_ = socket_;
+			recv_ctx_->connection_ = this;
+			recv_ctx_->socket_ = socket_;
 		}
-		template<typename READCALLBACK>
-		void bind_recv_callback(READCALLBACK callback)
+		
+		void bind_recv_callback(std::function<void(void* ,int)> callback)
 		{
 			recv_callback_ = callback;
 		}
-		template<typename SENDCALLBACK>
-		void bind_send_callback(SENDCALLBACK callback)
+		void bind_send_callback(std::function<void(int)> callback)
 		{
 			send_callback_ = callback;
 		}
 		void async_send(std::vector<uint8_t> &data)
 		{
-
+			assert(send_ctx_->status_ == io_context::e_idle);
+			send_ctx_->reload(data);
+			send_ctx_->status_ = io_context::e_send;
+			if (send_ctx_->last_status_ == io_context::e_send)
+				return;
+			assert(regist_send_ctx_);
+			regist_send_ctx_(send_ctx_);
 		}
 		void async_recv(uint32_t len)
 		{
+			assert(recv_ctx_->status_ == io_context::e_idle);
+			recv_ctx_->reload(len);
+			recv_ctx_->status_ = io_context::e_recv;
+			if (recv_ctx_->last_status_ == io_context::e_recv)
+				return;
+			else
+			assert(regist_recv_ctx_);
+			regist_recv_ctx_(recv_ctx_);
+		}
+		void close()
+		{
+			if (send_ctx_->status_ == io_context::e_idle)
+			{
+				if (in_callback_)
+					close_flag_ = true;
+				else
+				{
+					del_io_context_(recv_ctx_);
+					delete this;
+				}
 
+			}else if (send_ctx_->status_ == io_context::e_send)
+			{
+				send_ctx_->status_ |= io_context::e_close;
+			}
+			
 		}
 	private:
 		friend class proactor_impl;
-		void write_callback(bool status)
+		friend class acceptor_impl;
+		void send_callback(bool status)
 		{ 
+			send_ctx_->last_status_ = send_ctx_->status_;
+			send_ctx_->status_ = io_context::e_idle;
+			in_callback_ = true;
+			if(status)
+				send_callback_(send_ctx_->send_bytes_);
+			else
+				send_callback_(-1);
 
+			if (status && send_ctx_->status_ != io_context::e_send)
+			{
+				unregist_send_ctx_(send_ctx_);
+			}
+			in_callback_ = false;
+			if (close_flag_)
+			{
+				del_io_context_(recv_ctx_);
+				delete this;
+			}
 		}
+		void recv_callback(bool status)
+		{
+			recv_ctx_->last_status_ = recv_ctx_->status_;
+			recv_ctx_->status_ = io_context::e_idle;
+			in_callback_ = true;
+			recv_ctx_->buffer_.push_back('\0');
+			if (status)
+				recv_callback_(recv_ctx_->buffer_.data(), recv_ctx_->recv_bytes_);
+			else
+				recv_callback_(NULL, -1);
+			if (status && recv_ctx_->status_ != io_context::e_recv)
+			{
+				unregist_recv_ctx_(recv_ctx_);
+			}
+			in_callback_ = false;
+			if (close_flag_)
+			{
+				del_io_context_(recv_ctx_);
+				delete this;
+			}
+		}
+		SOCKET socket_ = INVALID_SOCKET;
+		bool in_callback_ = false;
+		bool close_flag_ = false;
+		io_context *send_ctx_ = NULL;
+		io_context *recv_ctx_ = NULL;
+
+		std::function<void(io_context*)> regist_send_ctx_;
+		std::function<void(io_context*)> unregist_send_ctx_;
+		std::function<void(io_context*)> regist_recv_ctx_;
+		std::function<void(io_context*)> unregist_recv_ctx_;
+		std::function<void(io_context*)> del_io_context_;
+
 		std::function<void(void *, int)> recv_callback_;
 		std::function<void(int)> send_callback_;
 	};
 	class acceptor_impl
 	{
 	public:
-		template<class accept_callback_t>
-		void regist_accept_callback(accept_callback_t callback)
+		acceptor_impl()
+		{
+
+		}
+		
+		void regist_accept_callback(std::function<void(connection_impl *)> callback)
 		{
 			acceptor_callback_ = callback;
 		}
 		void bind(const std::string &ip, int port)
 		{
+			socket_ = socket(AF_INET, SOCK_STREAM, 0);
+			if (socket_ == INVALID_SOCKET)
+				throw socket_exception(GetLastError());
 
+			char flag = 1;
+			if (setsockopt(socket_, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag)))
+			{
+				throw socket_exception(GetLastError());
+			}
+
+			struct sockaddr_in addr;
+			addr.sin_family = AF_INET;
+			addr.sin_port = htons(port);
+			addr.sin_addr.s_addr = inet_addr(ip.c_str());
+			
+			if(::bind(socket_, (struct sockaddr*)&addr, sizeof(addr)))
+				throw socket_exception(GetLastError());
+			
+			if(listen(socket_, 5))
+				throw socket_exception(GetLastError());
+			
+			char on = 1;
+			if (setsockopt(socket_, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on)))
+				throw socket_exception(GetLastError());
+
+			unsigned long bio = 1;
+			if(ioctlsocket(socket_, FIONBIO, &bio))
+				throw socket_exception(GetLastError());
+
+			accept_ctx_ = new io_context;
+			accept_ctx_->acceptor_ = this;
+			accept_ctx_->socket_ = socket_;
+			accept_ctx_->status_ = io_context::e_accept;
+
+			regist_accept_ctx_(accept_ctx_);
 		}
 		void close()
 		{
-
+			del_io_context_(accept_ctx_);
+			delete this;
 		}
 	private:
 		friend class proactor_impl;
 
 		void on_accept(bool result)
 		{ 
-
+			if (!result)
+			{
+				close();
+				return;
+			}			
+			SOCKET sock = ::accept(socket_, NULL, NULL);
+			if (sock == INVALID_SOCKET)
+				return;
+			auto conn = new connection_impl(sock);
+			conn->regist_recv_ctx_ = regist_recv_ctx_;
+			conn->unregist_recv_ctx_ = unregist_recv_ctx_;
+			conn->regist_send_ctx_ = regist_send_ctx_;
+			conn->unregist_send_ctx_ = unregist_send_ctx_;
+			conn->del_io_context_ = del_io_context_;
+			assert(conn);
+			acceptor_callback_(conn);
 		}
-		fd_t fd_;
-		
+
+		SOCKET socket_ = INVALID_SOCKET;
+		io_context* accept_ctx_ = NULL;
+		std::function<void(io_context*)> regist_accept_ctx_;
+		std::function<void(io_context*)> regist_send_ctx_;
+		std::function<void(io_context*)> unregist_send_ctx_;
+		std::function<void(io_context*)> regist_recv_ctx_;
+		std::function<void(io_context*)> unregist_recv_ctx_;
+		std::function<void(io_context*)> del_io_context_;
 		std::function<void(connection_impl*)> acceptor_callback_;
 	};
 	class connector_impl
 	{
 	public:
 		connector_impl()
-		{ }
+		{
+
+		}
 		~connector_impl()
 		{ }
 		template<typename SUCCESS_CALLBACK>
@@ -136,19 +303,72 @@ namespace select
 		}
 		void sync_connect(const std::string &ip, int port)
 		{
+			socket_ = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+			if (socket_ == INVALID_SOCKET)
+				throw socket_exception(GetLastError());
+			u_long nonblock = 1;
+			if (ioctlsocket(socket_, FIONBIO, &nonblock) == INVALID_SOCKET)
+				throw socket_exception(GetLastError());
 
+			sockaddr_in addr;
+			memset(&addr, 0, sizeof(addr));
+			addr.sin_family = AF_INET;
+			addr.sin_addr.s_addr = inet_addr(ip.c_str());
+			addr.sin_port = htons(port);
+
+			int res = connect(socket_,(struct sockaddr*)&addr,sizeof(addr));
+			if (res == 0)
+			{
+				on_connect(true);
+				return;
+			}
+			const int error_code = WSAGetLastError();
+			if (error_code != WSAEINPROGRESS &&
+				error_code != WSAEWOULDBLOCK)
+			{
+				on_connect(false);
+				return;
+			}
+			connect_ctx_ = new io_context;
+			assert(connect_ctx_);
+			connect_ctx_->connector_ = this;
+			connect_ctx_->socket_ = socket_;
+			connect_ctx_->status_ = io_context::e_close;
+			assert(regist_io_context_);
+			regist_io_context_(connect_ctx_);
 		}
 		void close()
 		{
-
+			connect_ctx_->status_ = io_context::e_close;
+			connect_ctx_->connector_ = NULL;
+			connect_ctx_->socket_= INVALID_SOCKET;
+			closesocket(socket_);
+			delete this;
 		}
 	private:
 		friend class proactor_impl;
 
 		void on_connect(bool result)
 		{
-
+			int err = 0;
+			socklen_t len = sizeof(err);
+			if (!getsockopt(socket_, SOL_SOCKET, SO_ERROR, (char*)&err, &len))
+				throw socket_exception(GetLastError());
+			if (err == 0)
+			{
+				assert(success_callback_);
+				SOCKET tmp = socket_;
+				socket_ = INVALID_SOCKET;
+				success_callback_(new connection_impl(tmp));
+			}
+			else
+			{
+				failed_callback_("connect failed");
+			}
 		}
+		std::function<void(io_context*)> regist_io_context_;
+		io_context *connect_ctx_ = NULL;
+		SOCKET socket_ = INVALID_SOCKET;
 		std::function<void(connection_impl *)> success_callback_;
 		std::function<void(std::string)> failed_callback_;
 	};
@@ -159,9 +379,12 @@ namespace select
 
 		struct fd_context
 		{
-			fd_t fd;
-			io_context io_context_;
+			SOCKET socket_ = INVALID_SOCKET;
+			bool del_flag_ = false;
+			io_context *recv_ctx_ = NULL;
+			io_context *send_ctx_ = NULL;
 		};
+		typedef std::vector <fd_context> fd_context_vec;
 
 	public:
 		proactor_impl()
@@ -170,62 +393,67 @@ namespace select
 		}
 		void init()
 		{
-
+			static std::once_flag once;
+			std::call_once(once, []
+			{
+				WSADATA wsaData;
+				int nResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+				if (NO_ERROR != nResult)
+				{
+					throw socket_exception(nResult);
+				}
+			});
 		}
 		void run()
 		{
 			while(!is_stop_)
 			{
-				uint32_t timeout = 0;
-				memcpy(&readfds, &source_set_in, sizeof source_set_in);
-				memcpy(&writefds, &source_set_out, sizeof source_set_out);
-				memcpy(&exceptfds, &source_set_err, sizeof source_set_err);
+				uint32_t timeout = -1;
+				memcpy(&readfds, &recv_fds_, sizeof recv_fds_);
+				memcpy(&writefds, &send_fds_, sizeof send_fds_);
+				memcpy(&exceptfds, &except_fds_, sizeof except_fds_);
 
 				//  Wait for events.
-#ifdef _OSX
-				struct timeval tv = { (long)(timeout / 1000), timeout % 1000 * 1000 };
-#else
 				struct timeval tv = { (long)(timeout / 1000),
 					(long)(timeout % 1000 * 1000) };
-#endif
 
-#ifdef _WIN32
 				int rc = ::select(0, &readfds, &writefds, &exceptfds,
 								timeout ? &tv : NULL);
-				assert(rc != SOCKET_ERROR);
-#else
-				int rc = ::select(maxfd + 1, &readfds, &writefds, &exceptfds,
-								timeout ? &tv : NULL);
-				if(rc == -1)
-				{
-					assert(errno == EINTR);
-					continue;
-				}
-#endif
+				//assert(rc != SOCKET_ERROR);
+				auto error_code = GetLastError();
 				if(rc == 0)
 					continue;
 
-				for(fd_set_t::size_type i = 0; i < fds.size(); i++)
+				for(fd_context_vec::size_type i = 0; i < fd_ctxs_.size(); i++)
 				{
-					if(fds[i].fd == INVALID_SOCKET)
+					if(fd_ctxs_[i].socket_ == INVALID_SOCKET)
 						continue;
-					if(FD_ISSET(fds[i].fd, &exceptfds))
-					if(fds[i].fd == INVALID_SOCKET)
+					if (FD_ISSET(fd_ctxs_[i].socket_, &exceptfds))
+						except_callback(fd_ctxs_[i]);
+					if(fd_ctxs_[i].socket_ == INVALID_SOCKET)
 						continue;
-					if(FD_ISSET(fds[i].fd, &writefds))
-						writeable_callback(fds[i]);
-					if(fds[i].fd == INVALID_SOCKET)
+					if(FD_ISSET(fd_ctxs_[i].socket_, &writefds))
+						writeable_callback(fd_ctxs_[i]);
+					if(fd_ctxs_[i].socket_ == INVALID_SOCKET)
 						continue;
-					if(FD_ISSET(fds[i].fd, &readfds))
-						readable_callback(fds[i]);
+					if(FD_ISSET(fd_ctxs_[i].socket_, &readfds))
+						readable_callback(fd_ctxs_[i]);
 				}
 
 				if(retired)
 				{
-					fds.erase(std::remove_if(fds.begin(), fds.end(), [](fd_context &entry)
+					fd_ctxs_.erase(std::remove_if(fd_ctxs_.begin(), fd_ctxs_.end(), [](fd_context &entry)
 					{
-						return entry.fd == INVALID_SOCKET;
-					}), fds.end());
+						if (entry.socket_ == INVALID_SOCKET)
+						{
+							if (entry.recv_ctx_)
+								delete entry.recv_ctx_;
+							if (entry.send_ctx_)
+								delete entry.send_ctx_;
+							return true;
+						}
+						return false;
+					}), fd_ctxs_.end());
 					retired = false;
 				}
 			}
@@ -236,108 +464,262 @@ namespace select
 		}
 		acceptor_impl *get_acceptor()
 		{
-			return NULL;
+			acceptor_impl *acceptor = new acceptor_impl;
+			acceptor->regist_accept_ctx_ = std::bind(
+				&proactor_impl::regist_recv_context, this, std::placeholders::_1);
+			acceptor->regist_recv_ctx_= std::bind(
+				&proactor_impl::regist_recv_context, this, std::placeholders::_1);
+			acceptor->unregist_recv_ctx_ = std::bind(
+				&proactor_impl::unregist_recv_context, this, std::placeholders::_1);
+			acceptor->regist_send_ctx_ = std::bind(
+				&proactor_impl::regist_send_context, this, std::placeholders::_1);
+			acceptor->unregist_send_ctx_ = std::bind(
+				&proactor_impl::unregist_send_context, this, std::placeholders::_1);
+			acceptor->del_io_context_ = std::bind(
+				&proactor_impl::del_io_context, this, std::placeholders::_1);
+			return acceptor;
 		}
+
 		connector_impl *get_connector()
 		{
-			return NULL;
+			connector_impl *connector = new connector_impl;
+			connector->regist_io_context_ = std::bind(
+				&proactor_impl::regist_recv_context, this, std::placeholders::_1);
 		}
 
-		void writeable_callback(fd_context entry)
+	private:
+		void regist_recv_context(io_context *io_ctx_)
 		{
-			io_context &io_ctx = entry.io_context_;
-
-			if(io_ctx.status_ == io_context::e_write)
+			for (auto &itr :fd_ctxs_)
 			{
-				int bytes = send_data(
-					io_ctx.fd_, 
-					io_ctx.buffer_.data() + io_ctx.write_pos_, 
-					io_ctx.to_write_ - io_ctx.write_bytes_);
-				if(bytes <= 0)
+				if (itr.socket_ == io_ctx_->socket_)
 				{
-					io_ctx.connection_->write_callback(false);
+					itr.recv_ctx_ = io_ctx_;
+					FD_SET(itr.socket_, &recv_fds_);
 					return;
 				}
-				io_ctx.write_bytes_ += bytes;
-				if(io_ctx.to_write_ == io_ctx.write_bytes_)
+			}
+			fd_context fd_ctx;
+			fd_ctx.socket_ = io_ctx_->socket_;
+			fd_ctx.recv_ctx_ = io_ctx_;
+			fd_ctxs_.push_back(fd_ctx);
+			FD_SET(io_ctx_->socket_, &recv_fds_);
+			FD_SET(io_ctx_->socket_, &except_fds_);
+		}
+		void unregist_recv_context(io_context *io_ctx_)
+		{
+			FD_CLR(io_ctx_->socket_, &recv_fds_);
+		}
+
+		void regist_send_context(io_context *io_ctx_)
+		{
+			for (auto &itr : fd_ctxs_)
+			{
+				if (itr.socket_ == io_ctx_->socket_)
 				{
-					io_ctx.connection_->write_callback(true);
+					itr.send_ctx_= io_ctx_;
+					FD_SET(itr.socket_, &send_fds_);
+					return;
 				}
 			}
-			else if(io_ctx.status_ == io_context::e_accept)
+			fd_context fd_ctx;
+			fd_ctx.socket_ = io_ctx_->socket_;
+			fd_ctx.send_ctx_ = io_ctx_;
+			fd_ctxs_.push_back(fd_ctx);
+			FD_SET(io_ctx_->socket_, &send_fds_);
+			FD_SET(io_ctx_->socket_, &except_fds_);
+		}
+		void unregist_send_context(io_context *io_ctx_)
+		{
+			FD_CLR(io_ctx_->socket_, &send_fds_);
+		}
+		void del_io_context(io_context *io_ctx_)
+		{
+			for (auto &itr : fd_ctxs_)
+			{
+				if (itr.socket_ == io_ctx_->socket_)
+				{
+					FD_CLR(itr.socket_, &send_fds_);
+					FD_CLR(itr.socket_, &recv_fds_);
+					FD_CLR(itr.socket_, &except_fds_);
+					closesocket(itr.socket_);
+					itr.socket_ = INVALID_SOCKET;
+					retired = true;
+					return;
+				}
+			}
+		}
+		void readable_callback(fd_context& fd_ctx)
+		{
+			if (!fd_ctx.recv_ctx_)
+				return;
+
+			io_context &io_ctx = *fd_ctx.recv_ctx_;
+			if (io_ctx.status_ == io_context::e_recv)
+			{
+				auto bytes = ::recv(
+					io_ctx.socket_,
+					(char*)io_ctx.buffer_.data() + io_ctx.recv_bytes_,
+					(int)io_ctx.buffer_.size()- io_ctx.recv_bytes_, 0);
+
+				if (bytes <= 0)
+				{
+					io_ctx.connection_->recv_callback(false);
+					return;
+				}
+				io_ctx.recv_bytes_ += bytes;
+				if(io_ctx.to_recv_ <= io_ctx.recv_bytes_)
+				{
+					io_ctx.connection_->recv_callback(true);
+				}
+			}
+			else if (io_ctx.status_ == io_context::e_accept)
 			{
 				io_ctx.acceptor_->on_accept(true);
 			}
-			else if(io_ctx.status_ == io_context::e_connect)
+			else if (io_ctx.status_ == io_context::e_connect)
 			{
 				io_ctx.connector_->on_connect(true);
 			}
 		}
-
-		void readable_callback(fd_context fds)
+		void writeable_callback(fd_context& fd_ctx)
 		{
+			if (!fd_ctx.send_ctx_)
+				return;
+			io_context &io_ctx = *fd_ctx.send_ctx_;
 
-		}
-
-
-	private:
-		int send_data(fd_t s_, const void *data_, size_t size_)
-		{
-#ifdef _WIN32
-			int nbytes = ::send(s_, (char*)data_, (int)size_, 0);
-			if(nbytes == SOCKET_ERROR && 
-			   WSAGetLastError() == WSAEWOULDBLOCK)
-				return 0;
-
-			return nbytes;
-
-#else
-			ssize_t nbytes = ::send(s_, data_, size_, 0);
-
-			if(nbytes == -1 && (errno == EAGAIN || 
-			   errno == EWOULDBLOCK ||errno == EINTR))
-				return 0;
-			return static_cast <int> (nbytes);
-#endif
-		}
-
-		int read_data(fd_t s_, void *data_, size_t size_)
-		{
-#ifdef _WIN32
-			return ::recv(s_, (char*)data_, (int)size_, 0);
-#else
-			const ssize_t bytes = recv(s_, data_, size_, 0);
-			if(bytes == -1)
+			if (io_ctx.status_ == io_context::e_send)
 			{
-				assert(errno != EBADF
-					   && errno != EFAULT
-						&& errno != ENOMEM
-						&& errno != ENOTSOCK);
-				if(errno == EWOULDBLOCK || errno == EINTR)
-					errno = EAGAIN;
+				auto bytes = ::send(io_ctx.socket_,
+					(char*)io_ctx.buffer_.data() + io_ctx.send_bytes_,
+					io_ctx.to_send_ - io_ctx.send_bytes_, 0);
+
+				if (bytes <= 0)
+				{
+					io_ctx.connection_->send_callback(false);
+					return;
+				}
+				io_ctx.send_bytes_ += bytes;
+				if (io_ctx.to_send_ == io_ctx.send_bytes_)
+				{
+					io_ctx.connection_->send_callback(true);
+				}
 			}
+			else if (io_ctx.status_ & io_context::e_send &&
+				io_ctx.status_ & io_context::e_close)
+			{
+				auto bytes = ::send(io_ctx.socket_,
+					(char*)io_ctx.buffer_.data() + io_ctx.send_bytes_,
+					io_ctx.to_send_ - io_ctx.send_bytes_, 0);
+				if (bytes <= 0)
+				{
+					FD_CLR(io_ctx.socket_, &send_fds_);
+					FD_CLR(io_ctx.socket_, &recv_fds_);
+					FD_CLR(io_ctx.socket_, &except_fds_);
+					shutdown(io_ctx.socket_, SD_SEND);
+					closesocket(io_ctx.socket_);
+					fd_ctx.socket_ = INVALID_SOCKET;
+					retired = true;
+					return;
+				}
+				io_ctx.send_bytes_ += bytes;
+				if (io_ctx.to_send_ == io_ctx.send_bytes_)
+				{
+					FD_CLR(io_ctx.socket_, &send_fds_);
+					FD_CLR(io_ctx.socket_, &recv_fds_);
+					FD_CLR(io_ctx.socket_, &except_fds_);
+					shutdown(io_ctx.socket_, SD_SEND);
+					closesocket(io_ctx.socket_);
+					io_ctx.socket_ = INVALID_SOCKET;
+					retired = true;
+					return;
+				}
+			}
+			else if (io_ctx.status_ == io_context::e_accept)
+			{
+				io_ctx.acceptor_->on_accept(true);
+			}
+			else if (io_ctx.status_ == io_context::e_connect)
+			{
+				io_ctx.connector_->on_connect(true);
+			}
+		}
+		void except_callback(fd_context &fd_ctx)
+		{
+			if (fd_ctx.send_ctx_ )
+			{
+				if(fd_ctx.send_ctx_->status_ == io_context::e_send)
+					fd_ctx.send_ctx_->connection_->send_callback(false);
 
-			return static_cast <int> (bytes);
+				else if (fd_ctx.send_ctx_->status_ & io_context::e_send &&
+					fd_ctx.send_ctx_->status_ & io_context::e_close)
+				{
+					del_fd_context(fd_ctx);
+				}
+				else if (fd_ctx.send_ctx_->status_ == io_context::e_accept)
+				{
+					fd_ctx.send_ctx_->acceptor_->on_accept(false);
+				}
+				else if (fd_ctx.send_ctx_->status_ == io_context::e_connect)
+				{
+					fd_ctx.send_ctx_->connector_->on_connect(false);
+				}
+				else if (fd_ctx.send_ctx_->status_ & io_context::e_close)
+				{
+					del_fd_context(fd_ctx);
+				}
+			}
+			if (fd_ctx.recv_ctx_)
+			{
+				if (fd_ctx.recv_ctx_->status_ == io_context::e_recv)
+				{
+					fd_ctx.recv_ctx_->connection_->recv_callback(false);
+				}
+				else if (fd_ctx.recv_ctx_->status_ & io_context::e_close)
+				{
+					del_fd_context(fd_ctx);
+				}
+				else if (fd_ctx.recv_ctx_->status_ == io_context::e_accept)
+				{
+					fd_ctx.recv_ctx_->acceptor_->on_accept(false);
+				}
+				else if (fd_ctx.recv_ctx_->status_ == io_context::e_connect)
+				{
+					fd_ctx.recv_ctx_->connector_->on_connect(false);
+				}
+			}
+		}
+		void del_fd_context(fd_context fd_ctx)
+		{
+			FD_CLR(fd_ctx.socket_, &except_fds_);
+			FD_CLR(fd_ctx.socket_, &recv_fds_);
+			FD_CLR(fd_ctx.socket_, &send_fds_);
+			closesocket(fd_ctx.socket_);
+			if (fd_ctx.recv_ctx_)
+				delete fd_ctx.recv_ctx_;
+			if (fd_ctx.send_ctx_)
+				delete fd_ctx.send_ctx_;
+			fd_ctx.send_ctx_ = NULL;
+			fd_ctx.recv_ctx_ = NULL;
+			fd_ctx.socket_ = INVALID_SOCKET;
+			retired = true;
+			return;
+		}
+		fd_context_vec fd_ctxs_;
 
-#endif
-}
-
-		typedef std::vector <fd_context> fd_set_t;
-		fd_set_t fds;
-
-		fd_set source_set_in;
-		fd_set source_set_out;
-		fd_set source_set_err;
+		fd_set recv_fds_;
+		fd_set send_fds_;
+		fd_set except_fds_;
 
 		fd_set readfds;
 		fd_set writefds;
 		fd_set exceptfds;
 
-		fd_t maxfd;
+		SOCKET maxfd ;
 
-		bool retired;
+		bool retired = false;
 
-		bool is_stop_;
+		bool is_stop_ = false;
 	};
 
 }

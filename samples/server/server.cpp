@@ -33,7 +33,7 @@ int main()
 			std::cout << (char*)data;
 			//async send data.
 			//conns[id].async_send(data,len);
-			conns[id].async_send(rsp.c_str(), rsp.size());
+			conns[id].async_send(rsp.c_str(), (int)rsp.size());
 			conns[id].async_recv_some();
  			//conns[id].close();
  			//conns.erase(conns.find(id));

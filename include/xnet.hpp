@@ -7,6 +7,9 @@ namespace xnet
 	class connection:public no_copy_able
 	{
 	public:
+		typedef std::function<void(void *, int)> recv_callback_t;
+		typedef std::function<void(int)> send_callback_t;
+
 		connection()
 		{
 
@@ -25,14 +28,13 @@ namespace xnet
 		{
 			close();
 		}
-		template<typename T>
-		connection &regist_send_callback(T callback)
+		connection &regist_send_callback(send_callback_t callback)
 		{
 			send_callback_ = callback;
 			return *this;
 		}
-		template<typename RECV_CALLBACK>
-		connection &regist_recv_callback(RECV_CALLBACK callback)
+
+		connection &regist_recv_callback(recv_callback_t callback)
 		{
 			recv_callback_ = callback;
 			return *this;
@@ -111,25 +113,28 @@ namespace xnet
 		}
 		void init()
 		{
-			impl_->bind_recv_callback([this](void *data, int len) {
+			impl_->bind_recv_callback(
+				[this](void *data, int len) {
 				assert(recv_callback_);
 				recv_callback_(data, len);
 			});
-			impl_->bind_send_callback([this](int len) {
+			impl_->bind_send_callback(
+				[this](int len) {
 				assert(send_callback_);
 				send_callback_(len);
 			});
 		}
 
 		detail::connection_impl *impl_ = NULL;
-		std::function<void(int)> send_callback_;
-		std::function<void(void *, int)> recv_callback_;
+		send_callback_t send_callback_;
+		recv_callback_t  recv_callback_;
 		
 	};
 
 	class acceptor : public no_copy_able
 	{
 	public:
+		typedef std::function<void(connection &&) > accept_callback_t;
 		~acceptor()
 		{
 			close();
@@ -142,7 +147,6 @@ namespace xnet
 		{
 			reset_move(std::move(acceptor_));
 		}
-		template<class accept_callback_t>
 		void regist_accept_callback(accept_callback_t callback)
 		{
 			accept_callback_ = callback;
@@ -150,7 +154,6 @@ namespace xnet
 		}
 		bool bind(const std::string &ip, int port)
 		{
-			
 			try
 			{
 				impl_->bind(ip, port);
@@ -181,7 +184,7 @@ namespace xnet
 			{
 				init(acceptor_.impl_);
 				acceptor_.impl_ = NULL;
-				accept_callback_ = std::move(acceptor_.accept_callback_);
+				accept_callback_= std::move(acceptor_.accept_callback_);
 
 			}
 		}
@@ -196,12 +199,15 @@ namespace xnet
 			});
 		}
 		friend proactor;
-		std::function<void(connection &&) > accept_callback_;
+		accept_callback_t accept_callback_;
 		detail::acceptor_impl *impl_ = NULL;
 	};
 	class connector: no_copy_able
 	{
 	public:
+		typedef std::function<void(connection &&)> success_callback_t;
+		typedef std::function<void(std::string)> failed_callback_t;
+
 		connector(connector && _connector)
 		{
 			reset_move(std::move(_connector));
@@ -230,8 +236,7 @@ namespace xnet
 					failed_callback_(e.str());
 			}
 		}
-		template<typename SUCCESS_CALLBACK>
-		connector& bind_success_callback(SUCCESS_CALLBACK callback)
+		connector& bind_success_callback(success_callback_t callback)
 		{
 			success_callback_ = callback;
 			impl_->bind_success_callback(
@@ -241,8 +246,7 @@ namespace xnet
 			});
 			return *this;
 		}
-		template<typename FAILED_CALLBACK>
-		connector& bind_fail_callback(FAILED_CALLBACK callback)
+		connector& bind_fail_callback(failed_callback_t callback)
 		{
 			failed_callback_ = callback;
 			impl_->bind_failed_callback(
@@ -267,21 +271,22 @@ namespace xnet
 				impl_ = _connector.impl_;
 				success_callback_ = std::move(_connector.success_callback_);
 				failed_callback_ = std::move(_connector.failed_callback_);
-				impl_->bind_success_callback([this](detail::connection_impl *conn) {
+				impl_->bind_success_callback(
+					[this](detail::connection_impl *conn) {
 					success_callback_(connection(conn));
 				});
-				impl_->bind_failed_callback([this](std::string error_code) {
+				impl_->bind_failed_callback(
+					[this](std::string error_code) {
 					failed_callback_(error_code);
 				});
 				_connector.impl_ = NULL;
 			}
-			
 		}
 		connector()
 		{
 		}
 		std::function<void(connection &&)> success_callback_;
-		std::function<void(std::string)> failed_callback_;
+		 failed_callback_t failed_callback_;
 		detail::connector_impl *impl_ = NULL;
 		std::string ip_;
 		int port_;

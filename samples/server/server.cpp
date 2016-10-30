@@ -30,13 +30,17 @@ int main()
 			}
 
 			//std::string str((char*)data, len);
-			std::cout << (char*)data;
+			//std::cout << (char*)data;
 			//async send data.
 			//conns[id].async_send(data,len);
 			conns[id].async_send(rsp.c_str(), (int)rsp.size());
 			conns[id].async_recv_some();
- 			//conns[id].close();
- 			//conns.erase(conns.find(id));
+ 			if(conns.size() > 1)
+ 			{
+ 				conns.begin()->second.close();
+ 				conns.erase(conns.begin());
+ 			}
+ 			
 		});
 		conn.regist_send_callback([&](int len) {
 			

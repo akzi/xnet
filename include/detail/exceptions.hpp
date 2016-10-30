@@ -1,0 +1,61 @@
+#pragma once
+namespace xnet
+{
+	namespace detail
+	{
+		class socket_exception :std::exception
+		{
+		public:
+			socket_exception(int error_code)
+				:error_code_(error_code)
+			{
+				init_error_msg();
+			}
+			socket_exception(const char *file, const int line, int error_code)
+				:error_code_(error_code)
+			{
+				error_str_ += "FILE: ";
+				error_str_ += file;
+				error_str_ += " LINE: ";
+				error_str_ += std::to_string(line);
+				error_str_ += " error_str:";
+				init_error_msg();
+				std::cout << error_str_.c_str() << std::endl;;
+			}
+			const char *str()
+			{
+				return error_str_.c_str();
+			}
+		private:
+			void init_error_msg()
+			{
+#ifdef _WIN32
+				static char errmsg[512];
+
+				if(!FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,0,
+				   error_code_,0,errmsg,511,NULL))
+					error_str_ = "FormatMessage failed";
+				else
+					error_str_ += errmsg;
+#elif _LINUX_
+				const char *errmsg = strerror(error_code_);
+				if(errmsg)
+					error_str_ += errmsg;
+				else
+					error_str_ = "strerror error";
+#endif
+			}
+			int error_code_ = 0;
+			std::string error_str_;
+		};
+#ifdef _WIN32
+#define xnet_assert(x) \
+		if(!(x)) \
+			throw detail::socket_exception(__FILE__, __LINE__, WSAGetLastError());
+#elif defined(_LINUX_)
+#define xnet_assert(x) \
+		if(!(x)) \
+			throw detail::socket_exception(__FILE__, __LINE__, WSAGetLastError());
+#endif
+	}
+}

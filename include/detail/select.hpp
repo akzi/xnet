@@ -2,27 +2,7 @@ namespace xnet
 {
 namespace select
 {
-	class socket_exception :std::exception
-	{
-	public: 
-		socket_exception(int64_t error_code)
-			:error_code_(error_code)
-		{
-
-		}
-		socket_exception()
-		{
-
-		}
-		const char *str()
-		{
-			return error_str_.c_str();
-		}
-	private:
-		int64_t error_code_ = 0;
-		std::string error_str_;
-	};
-
+	typedef detail::socket_exception socket_exception;
 	class io_context
 	{
 	public:
@@ -86,12 +66,13 @@ namespace select
 		{
 
 		}
-		void bind_recv_callback(
-			std::function<void(void* ,int)> callback)
+		template<typename T>
+		void bind_recv_callback(T callback)
 		{
 			recv_callback_handle_ = callback;
 		}
-		void bind_send_callback(std::function<void(int)> callback)
+		template<typename T>
+		void bind_send_callback(T callback)
 		{
 			send_callback_handle_ = callback;
 		}
@@ -120,13 +101,15 @@ namespace select
 			if (send_ctx_->status_ == io_context::e_idle)
 			{
 				del_io_context_(recv_ctx_);
-
 			}
 			else if (send_ctx_->status_ == io_context::e_send)
 			{
 				send_ctx_->status_ |= io_context::e_close;
 			}
-			close_flag_ = true;
+			if(in_callback_)
+				close_flag_ = true;
+			else
+				delete this;
 		}
 		
 	private:
@@ -148,43 +131,43 @@ namespace select
 		{
 			send_ctx_->last_status_ = send_ctx_->status_;
 			send_ctx_->status_ = io_context::e_idle;
+			in_callback_ = true;
 			if(status)
 				send_callback_handle_(send_ctx_->send_bytes_);
 			else
 				send_callback_handle_(-1);
-
-			if(status && send_ctx_->status_ != io_context::e_send)
+			in_callback_ = false;
+			if(!close_flag_ && send_ctx_->status_ != io_context::e_send)
 			{
 				send_ctx_->last_status_ = io_context::e_idle;
 				unregist_send_ctx_(send_ctx_);
 			}
 			if(close_flag_)
-			{
-				del_io_context_(recv_ctx_);
-			}
+				delete  this;
 		}
 		void recv_callback(bool status)
 		{
 			recv_ctx_->last_status_ = recv_ctx_->status_;
 			recv_ctx_->status_ = io_context::e_idle;
 			recv_ctx_->buffer_.push_back('\0');
+			in_callback_ = true;
 			if (status)
 				recv_callback_handle_(recv_ctx_->buffer_.data(),
 									  recv_ctx_->recv_bytes_);
 			else
 				recv_callback_handle_(NULL, -1);
-			if (status && recv_ctx_->status_ != io_context::e_recv)
+			in_callback_ = false;
+			if(!close_flag_ && recv_ctx_->status_ != io_context::e_recv)
 			{
 				recv_ctx_->last_status_ = io_context::e_idle;
 				unregist_recv_ctx_(recv_ctx_);
 			}
-			if (close_flag_)
-			{
-				del_io_context_(recv_ctx_);
-			}
+			if(close_flag_)
+				delete  this;
 		}
 		SOCKET socket_ = INVALID_SOCKET;
 		bool close_flag_ = false;
+		bool in_callback_ = false;
 		io_context *send_ctx_ = NULL;
 		io_context *recv_ctx_ = NULL;
 
@@ -249,6 +232,15 @@ namespace select
 			accept_ctx_->status_ = io_context::e_accept;
 
 			regist_accept_ctx_(accept_ctx_);
+
+			try
+			{
+				on_accept(true);
+			}
+			catch(socket_exception & e)
+			{
+				std::cout << e.str() << std::endl;
+			}
 		}
 		void close()
 		{
@@ -260,11 +252,7 @@ namespace select
 
 		void on_accept(bool result)
 		{ 
-			if(!result)
-			{
-				close();
-				return;
-			}
+			xnet_assert(result);
 			do 
 			{
 				SOCKET sock = ::accept(socket_, NULL, NULL);
@@ -643,20 +631,20 @@ namespace select
 				if (bytes <= 0)
 				{
 					io_ctx.connection_->recv_callback(false);
-					if(io_ctx.connection_->close_flag_)
-					{
-						delete io_ctx.connection_;
-					}
+// 					if(io_ctx.connection_->close_flag_)
+// 					{
+// 						delete io_ctx.connection_;
+// 					}
 					return;
 				}
 				io_ctx.recv_bytes_ += bytes;
 				if(io_ctx.to_recv_ <= io_ctx.recv_bytes_)
 				{
 					io_ctx.connection_->recv_callback(true);
-					if(io_ctx.connection_->close_flag_)
-					{
-						delete io_ctx.connection_;
-					}
+// 					if(io_ctx.connection_->close_flag_)
+// 					{
+// 						delete io_ctx.connection_;
+// 					}
 				}
 			}
 			else if (io_ctx.status_ == io_context::e_accept)

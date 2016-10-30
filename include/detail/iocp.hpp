@@ -5,45 +5,7 @@ namespace detail
 {
 namespace iocp
 {
-	class socket_exception :std::exception
-	{
-	public:
-		explicit socket_exception(int error_code)
-			: error_code_(error_code)
-		{
-			get_last_error_msg();
-		}
-		explicit socket_exception(const std::string &error_str)
-			:error_str_(error_str)
-		{
-
-		}
-		const char *str()
-		{
-			return error_str_.c_str();
-		}
-	private:
-		void get_last_error_msg()
-		{
-			static TCHAR errmsg[512];
-
-			if (!FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
-				0,
-				error_code_,
-				0,
-				errmsg,
-				511,
-				NULL))
-			{
-				error_code_ = GetLastError();
-				get_last_error_msg();
-			}
-
-			error_str_ = errmsg;
-		}
-		std::string error_str_;
-		DWORD error_code_;
-	};
+	typedef detail::socket_exception socket_exception;
 
 	class overLapped_context : OVERLAPPED
 	{

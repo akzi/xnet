@@ -12,6 +12,7 @@
 #include <string.h>
 #include <cassert>
 #include <memory.h>
+#include "include/hello.h"
 using namespace std;
 
 #define MAXLINE 5
@@ -44,9 +45,9 @@ int main(int argc, char* argv[])
     socklen_t clilen;
 
 
-   portnumber = 9001;
+    portnumber = 9001;
 
-
+	hello::say_hello();
 
     //声明epoll_event结构体的变量,ev用于注册事件,数组用于回传要处理的事件
 
@@ -83,8 +84,14 @@ int main(int argc, char* argv[])
 
     serveraddr.sin_port=htons(portnumber);
     bind(listenfd,(sockaddr *)&serveraddr, sizeof(serveraddr));
-    listen(listenfd, LISTENQ);
+    listen(listenfd, SOMAXCONN);
     maxi = 0;
+	
+	if(accept(listenfd, NULL, 0)== -1)
+	{
+		assert(errno == EAGAIN || errno == EWOULDBLOCK);
+		std::cout << (errno == EAGAIN ? "EAGAIN ":"EWOULDBLOCK")<<std::endl;
+	}
 	
     for ( ; ; ) {
         //等待epoll事件的发生

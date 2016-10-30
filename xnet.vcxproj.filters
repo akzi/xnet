@@ -42,6 +42,9 @@
     <ClInclude Include="include\detail\epoll.hpp">
       <Filter>头文件\detail</Filter>
     </ClInclude>
+    <ClInclude Include="include\detail\exceptions.hpp">
+      <Filter>头文件\detail</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\xnet.cpp">

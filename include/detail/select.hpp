@@ -438,20 +438,18 @@ namespace select
 		{
 			while(!is_stop_)
 			{
-				uint32_t timeout = -1;
 				memcpy(&readfds, &recv_fds_, sizeof recv_fds_);
 				memcpy(&writefds, &send_fds_, sizeof send_fds_);
 				memcpy(&exceptfds, &except_fds_, sizeof except_fds_);
 
-				//  Wait for events.
+				uint32_t timeout = timer_manager_.do_timer();
+
 				struct timeval tv = { (long)(timeout / 1000),
 					(long)(timeout % 1000 * 1000) };
 
 				int rc = ::select(0, &readfds, &writefds, &exceptfds,
 								timeout ? &tv : NULL);
-				//assert(rc != SOCKET_ERROR);
-				auto error_code = GetLastError();
-				if(rc == 0)
+				if (rc == 0)
 					continue;
 
 				for(fd_context_vec::size_type i = 0; i < fd_ctxs_.size(); i++)
@@ -553,6 +551,17 @@ namespace select
 				this, std::placeholders::_1);
 		}
 
+		timer_manager::timer_id set_timer(uint32_t timeout, std::function<void()> timer_callback)
+		{
+			auto timer_point = std::chrono::high_resolution_clock::now()
+				+ std::chrono::high_resolution_clock::
+				duration(std::chrono::milliseconds(timeout));
+			return timer_manager_.insert(std::make_pair(timer_point, timer_callback));
+		}
+		void del_timer(timer_manager::timer_id id)
+		{
+			timer_manager_.erase(id);
+		}
 	private:
 		void regist_recv_context(io_context *io_ctx_)
 		{
@@ -631,20 +640,12 @@ namespace select
 				if (bytes <= 0)
 				{
 					io_ctx.connection_->recv_callback(false);
-// 					if(io_ctx.connection_->close_flag_)
-// 					{
-// 						delete io_ctx.connection_;
-// 					}
 					return;
 				}
 				io_ctx.recv_bytes_ += bytes;
 				if(io_ctx.to_recv_ <= io_ctx.recv_bytes_)
 				{
 					io_ctx.connection_->recv_callback(true);
-// 					if(io_ctx.connection_->close_flag_)
-// 					{
-// 						delete io_ctx.connection_;
-// 					}
 				}
 			}
 			else if (io_ctx.status_ == io_context::e_accept)
@@ -794,6 +795,8 @@ namespace select
 		bool retired = false;
 
 		bool is_stop_ = false;
+
+		timer_manager timer_manager_;
 	};
 
 }

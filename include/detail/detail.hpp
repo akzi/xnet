@@ -8,9 +8,11 @@
 #include <exception>
 #include <iostream>
 #include <algorithm>
+#include <chrono>
 #include <string>
 #include "common/guard.hpp"
 #include "common/no_copy_able.hpp"
+#include "detail/timer.hpp"
 #define SELECT 1
 #define FD_SETSIZE      1024
 #if defined _WIN32 

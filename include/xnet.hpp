@@ -295,6 +295,7 @@ namespace xnet
 	class proactor: public no_copy_able
 	{
 	public:
+		typedef timer_manager::timer_id timer_id;
 		proactor()
 		{
 			impl = new detail::proactor_impl;
@@ -346,6 +347,14 @@ namespace xnet
 			connector connector_;
 			connector_.init(impl->get_connector());
 			return connector_;
+		}
+		timer_id set_timer(int64_t timeout, std::function<void()> func)
+		{
+			impl->set_timer(timeout, func);
+		}
+		void del_timer(timer_id id)
+		{
+			impl->del_timer(id);
 		}
 	private:
 		detail::proactor_impl *impl;

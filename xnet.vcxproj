@@ -26,6 +26,7 @@
     <ClInclude Include="include\detail\exceptions.hpp" />
     <ClInclude Include="include\detail\iocp.hpp" />
     <ClInclude Include="include\detail\select.hpp" />
+    <ClInclude Include="include\detail\timer.hpp" />
     <ClInclude Include="include\xnet.hpp" />
   </ItemGroup>
   <ItemGroup>

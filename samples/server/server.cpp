@@ -9,7 +9,10 @@ int main()
 	std::fstream is;
 	is.open("rsp.txt");
 	if (!is)
+	{
+		std::cout << "open file rsp.txt failed, exit()..." << std::endl;
 		return 0;
+	}
 	std::string rsp((std::istreambuf_iterator<char>(is)),
 		std::istreambuf_iterator<char>());
 

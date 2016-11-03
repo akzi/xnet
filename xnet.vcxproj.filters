@@ -48,6 +48,9 @@
     <ClInclude Include="include\detail\timer.hpp">
       <Filter>头文件\detail</Filter>
     </ClInclude>
+    <ClInclude Include="include\detail\functional.hpp">
+      <Filter>头文件\detail</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\xnet.cpp">

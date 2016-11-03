@@ -60,7 +60,6 @@ namespace select
 		connection_impl(SOCKET _socket)
 			:socket_(_socket)
 		{
-
 		}
 		~connection_impl()
 		{
@@ -269,8 +268,6 @@ namespace select
 				acceptor_callback_(conn);
 
 			} while (true);
-			
-			
 		}
 
 		SOCKET socket_ = INVALID_SOCKET;
@@ -423,16 +420,7 @@ namespace select
 		}
 		void init()
 		{
-			static std::once_flag once;
-			std::call_once(once, []
-			{
-				WSADATA wsaData;
-				int nResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-				if (NO_ERROR != nResult)
-				{
-					throw socket_exception(nResult);
-				}
-			});
+			socket_initer::get_instance();
 		}
 		void run()
 		{
@@ -442,13 +430,12 @@ namespace select
 				memcpy(&writefds, &send_fds_, sizeof send_fds_);
 				memcpy(&exceptfds, &except_fds_, sizeof except_fds_);
 
-				int64_t timeout = timer_manager_.do_timer();
-				std::cout << timeout << std::endl;
+				int64_t timeout = timer_manager_.do_timer();							
 				timeout = timeout > 0 ? timeout : 1000;
-				struct timeval tv = { (long)(timeout / 1000),
-					(long)(timeout % 1000 * 1000) };
-				int rc = ::select(0, &readfds, &writefds, &exceptfds,
-								timeout ? &tv : NULL);
+
+				int rc = selecter_ (maxfd_, &readfds, &writefds, 
+					&exceptfds, (uint32_t)timeout);
+
 				if (rc == 0)
 					continue;
 
@@ -568,6 +555,8 @@ namespace select
 				if (itr.socket_ == io_ctx_->socket_)
 				{
 					itr.recv_ctx_ = io_ctx_;
+					if (io_ctx_->socket_ > maxfd_)
+						maxfd_ = io_ctx_->socket_;
 					FD_SET(itr.socket_, &recv_fds_);
 					return;
 				}
@@ -578,6 +567,8 @@ namespace select
 			fd_ctxs_.push_back(fd_ctx);
 			FD_SET(io_ctx_->socket_, &recv_fds_);
 			FD_SET(io_ctx_->socket_, &except_fds_);
+			if (io_ctx_->socket_ > maxfd_)
+				maxfd_ = io_ctx_->socket_;
 		}
 		void unregist_recv_context(io_context *io_ctx_)
 		{
@@ -592,6 +583,8 @@ namespace select
 				{
 					itr.send_ctx_= io_ctx_;
 					FD_SET(itr.socket_, &send_fds_);
+					if (io_ctx_->socket_ > maxfd_)
+						maxfd_ = io_ctx_->socket_;
 					return;
 				}
 			}
@@ -601,6 +594,8 @@ namespace select
 			fd_ctxs_.push_back(fd_ctx);
 			FD_SET(io_ctx_->socket_, &send_fds_);
 			FD_SET(io_ctx_->socket_, &except_fds_);
+			if (io_ctx_->socket_ > maxfd_)
+				maxfd_ = io_ctx_->socket_;
 		}
 		void unregist_send_context(io_context *io_ctx_)
 		{
@@ -612,15 +607,21 @@ namespace select
 			{
 				if (itr.socket_ == io_ctx_->socket_)
 				{
+					if (itr.socket_ > maxfd_)
+						maxfd_ = INVALID_SOCKET;
 					FD_CLR(itr.socket_, &send_fds_);
 					FD_CLR(itr.socket_, &recv_fds_);
 					FD_CLR(itr.socket_, &except_fds_);
-					closesocket(itr.socket_);
+					socket_closer_(itr.socket_);
 					itr.socket_ = INVALID_SOCKET;
 					retired = true;
-					return;
+					break;
 				}
 			}
+			if (maxfd_ == INVALID_SOCKET)
+				for (auto &itr : fd_ctxs_)
+					if (itr.socket_ > maxfd_)
+						maxfd_ = itr.socket_;
 		}
 		void readable_callback(fd_context& fd_ctx)
 		{
@@ -690,7 +691,7 @@ namespace select
 					FD_CLR(io_ctx.socket_, &recv_fds_);
 					FD_CLR(io_ctx.socket_, &except_fds_);
 					shutdown(io_ctx.socket_, SD_SEND);
-					closesocket(io_ctx.socket_);
+					socket_closer_(io_ctx.socket_);
 					fd_ctx.socket_ = INVALID_SOCKET;
 					retired = true;
 					return;
@@ -702,7 +703,7 @@ namespace select
 					FD_CLR(io_ctx.socket_, &recv_fds_);
 					FD_CLR(io_ctx.socket_, &except_fds_);
 					shutdown(io_ctx.socket_, SD_SEND);
-					closesocket(io_ctx.socket_);
+					socket_closer_(io_ctx.socket_);
 					fd_ctx.socket_ = INVALID_SOCKET;
 					retired = true;
 					return;
@@ -788,14 +789,14 @@ namespace select
 		fd_set writefds;
 		fd_set exceptfds;
 
-		SOCKET maxfd ;
+		SOCKET maxfd_ = INVALID_SOCKET ;
 
 		bool retired = false;
 
 		bool is_stop_ = false;
-
+		socket_closer<SOCKET> socket_closer_;
 		timer_manager timer_manager_;
+		selecter selecter_;
 	};
-
 }
 }

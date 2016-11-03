@@ -22,6 +22,7 @@
 #include <winsock2.h>
 #include <mswsock.h>
 #include "exceptions.hpp"
+#include "detail/functional.hpp"
 #include "detail/iocp.hpp"
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Mswsock.lib")
@@ -36,9 +37,11 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 typedef int SOCKET
+#define INVALID_SOCKET -1
 #ifndef max_io_events
 #define max_io_events 256
 #endif
+#include "functional.hpp"
 #include "exceptions.hpp"
 #include "detail/epoll.hpp"
 #endif

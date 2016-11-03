@@ -24,6 +24,7 @@
     <ClInclude Include="include\detail\detail.hpp" />
     <ClInclude Include="include\detail\epoll.hpp" />
     <ClInclude Include="include\detail\exceptions.hpp" />
+    <ClInclude Include="include\detail\functional.hpp" />
     <ClInclude Include="include\detail\iocp.hpp" />
     <ClInclude Include="include\detail\select.hpp" />
     <ClInclude Include="include\detail\timer.hpp" />

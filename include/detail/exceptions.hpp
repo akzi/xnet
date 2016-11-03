@@ -11,7 +11,8 @@ namespace xnet
 			{
 				init_error_msg();
 			}
-			socket_exception(const char *file, const int line, int error_code)
+			socket_exception(const char *file, 
+				const int line, int error_code)
 				:error_code_(error_code)
 			{
 				error_str_ += "FILE: ";
@@ -51,11 +52,13 @@ namespace xnet
 #ifdef _WIN32
 #define xnet_assert(x) \
 		if(!(x)) \
-			throw detail::socket_exception(__FILE__, __LINE__, WSAGetLastError());
+			throw detail::socket_exception\
+			(__FILE__, __LINE__, WSAGetLastError());
 #elif defined(_LINUX_)
 #define xnet_assert(x) \
 		if(!(x)) \
-			throw detail::socket_exception(__FILE__, __LINE__, WSAGetLastError());
+			throw detail::socket_exception\
+			(__FILE__, __LINE__, errno);
 #endif
 	}
 }

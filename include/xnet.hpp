@@ -348,13 +348,13 @@ namespace xnet
 			connector_.init(impl->get_connector());
 			return connector_;
 		}
-		timer_id set_timer(int64_t timeout, std::function<void()> func)
+		timer_id set_timer(uint32_t timeout, std::function<bool()> func)
 		{
-			impl->set_timer(timeout, func);
+			return impl->set_timer(timeout, func);
 		}
-		void del_timer(timer_id id)
+		void cancel_timer(timer_id id)
 		{
-			impl->del_timer(id);
+			impl->cancel_timer(id);
 		}
 	private:
 		detail::proactor_impl *impl;

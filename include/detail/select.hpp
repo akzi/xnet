@@ -442,11 +442,11 @@ namespace select
 				memcpy(&writefds, &send_fds_, sizeof send_fds_);
 				memcpy(&exceptfds, &except_fds_, sizeof except_fds_);
 
-				uint32_t timeout = timer_manager_.do_timer();
-
+				int64_t timeout = timer_manager_.do_timer();
+				std::cout << timeout << std::endl;
+				timeout = timeout > 0 ? timeout : 1000;
 				struct timeval tv = { (long)(timeout / 1000),
 					(long)(timeout % 1000 * 1000) };
-
 				int rc = ::select(0, &readfds, &writefds, &exceptfds,
 								timeout ? &tv : NULL);
 				if (rc == 0)
@@ -551,16 +551,14 @@ namespace select
 				this, std::placeholders::_1);
 		}
 
-		timer_manager::timer_id set_timer(uint32_t timeout, std::function<void()> timer_callback)
+		timer_manager::timer_id set_timer(uint32_t timeout, 
+			std::function<bool()> timer_callback)
 		{
-			auto timer_point = std::chrono::high_resolution_clock::now()
-				+ std::chrono::high_resolution_clock::
-				duration(std::chrono::milliseconds(timeout));
-			return timer_manager_.insert(std::make_pair(timer_point, timer_callback));
+			return timer_manager_.set_timer(timeout, timer_callback);
 		}
-		void del_timer(timer_manager::timer_id id)
+		void cancel_timer(timer_manager::timer_id id)
 		{
-			timer_manager_.erase(id);
+			timer_manager_.cancel_timer(id);
 		}
 	private:
 		void regist_recv_context(io_context *io_ctx_)

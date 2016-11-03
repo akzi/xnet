@@ -515,6 +515,7 @@ namespace iocp
 	class proactor_impl
 	{
 	public:
+		typedef timer_manager::timer_id timer_id;
 		proactor_impl()
 		{
 
@@ -545,7 +546,8 @@ namespace iocp
 				void *key = NULL;
 				overLapped_context *overlapped = NULL;
 				DWORD bytes = 0;
-				DWORD timeout = INFINITE;
+				DWORD timeout = (DWORD)timer_manager_.do_timer();
+				timeout = timeout ? timeout : 1000;
 				BOOL status = GetQueuedCompletionStatus(
 					IOCompletionPort_,
 					&bytes,
@@ -592,6 +594,14 @@ namespace iocp
 			assert(IOCompletionPort_);
 			acceptor->IOCompletionPort_ = IOCompletionPort_;
 			return acceptor;
+		}
+		timer_id set_timer(uint32_t timeout,std::function<bool()> timer_callback)
+		{
+			return timer_manager_.set_timer(timeout, timer_callback);
+		}
+		void cancel_timer(timer_id id)
+		{
+			timer_manager_.cancel_timer(id);
 		}
 	private:
 		void continue_send(overLapped_context *overlapped, DWORD bytes)
@@ -728,7 +738,7 @@ namespace iocp
 				overlapped->connector_->connect_callback(true);
 			}
 		}
-
+		timer_manager timer_manager_;
 		bool is_stop_ = false;
 		HANDLE IOCompletionPort_ = NULL;
 	};

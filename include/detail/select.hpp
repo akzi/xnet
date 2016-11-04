@@ -316,8 +316,8 @@ namespace select
 			}
 			get_last_errorer errorer;
 			int error_code = errorer();
-			if (error_code != WSAEINPROGRESS &&
-				error_code != WSAEWOULDBLOCK)
+			if (error_code != EINPROGRESS &&
+				error_code != EWOULDBLOCK)
 			{
 				on_connect(false);
 				return;

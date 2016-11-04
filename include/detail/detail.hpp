@@ -59,8 +59,6 @@ namespace xnet
 		typedef iocp::proactor_impl proactor_impl;
 		typedef iocp::connector_impl connector_impl;
 		typedef iocp::socket_exception socket_exception;
-#elif EPOLL
-		
 #elif SELECT
 		typedef select::connection_impl connection_impl;
 		typedef select::acceptor_impl acceptor_impl;

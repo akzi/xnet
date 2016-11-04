@@ -14,8 +14,11 @@
 #include "common/no_copy_able.hpp"
 #include "detail/timer.hpp"
 #define SELECT 1
-#define FD_SETSIZE      1024
 #if defined _WIN32 
+#ifdef FD_SETSIZE
+#undef FD_SETSIZE
+#endif
+#define FD_SETSIZE      1024
 #define IOCP 0
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <ws2tcpip.h>//socklen_t 

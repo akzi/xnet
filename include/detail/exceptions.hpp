@@ -38,7 +38,7 @@ namespace xnet
 					error_str_ = "FormatMessage failed";
 				else
 					error_str_ += errmsg;
-#elif _LINUX_
+#elif defined(_LINUX_)
 				const char *errmsg = strerror(error_code_);
 				if(errmsg)
 					error_str_ += errmsg;

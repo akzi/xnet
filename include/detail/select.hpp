@@ -327,6 +327,7 @@ namespace select
 				on_connect(true);
 				return;
 			}
+#ifdef _WIN32
 			const int error_code = WSAGetLastError();
 			if (error_code != WSAEINPROGRESS &&
 				error_code != WSAEWOULDBLOCK)
@@ -334,6 +335,12 @@ namespace select
 				on_connect(false);
 				return;
 			}
+#elif _LINUX
+			if (errno != EINTR || errno != EINPROGRESS)
+			{
+				on_connect(false);
+			}
+#endif
 			
 			assert(regist_accept_ctx_);
 			regist_accept_ctx_(connect_ctx_);

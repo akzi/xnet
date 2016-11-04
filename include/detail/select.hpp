@@ -335,6 +335,7 @@ namespace select
 
 		void on_connect(bool result)
 		{
+			xnet_assert(result);
 			xnet_assert(success_callback_);
 			xnet_assert(failed_callback_);
 

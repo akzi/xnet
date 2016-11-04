@@ -151,6 +151,7 @@ namespace xnet
 		acceptor &operator =(acceptor &&acceptor_)
 		{
 			reset_move(std::move(acceptor_));
+			return *this;
 		}
 		void regist_accept_callback(accept_callback_t callback)
 		{
@@ -220,6 +221,7 @@ namespace xnet
 		connector & operator =(connector && _connector)
 		{
 			reset_move(std::move(_connector));
+			return *this;
 		}
 		~connector()
 		{
@@ -254,15 +256,12 @@ namespace xnet
 		connector& bind_fail_callback(failed_callback_t callback)
 		{
 			failed_callback_ = callback;
-			trace;
 			xnet_assert(impl_);
-			trace;
 			impl_->bind_failed_callback(
 				[this](std::string error_code)
 			{
 				failed_callback_(std::move(error_code));
 			});
-			trace;
 			return *this;
 		}
 		void close()

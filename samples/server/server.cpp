@@ -7,7 +7,7 @@ int main()
 	int id = 0;
 	auto acceptor = proactor.get_acceptor();
 	std::fstream is;
-	is.open("rsp.txt");
+	is.open("./rsp.txt");
 	if (!is)
 	{
 		std::cout << "open file rsp.txt failed, exit()..." << std::endl;
@@ -16,15 +16,15 @@ int main()
 	std::string rsp((std::istreambuf_iterator<char>(is)),
 		std::istreambuf_iterator<char>());
 
-	int send = 0;
-	int recv = 0;
 	acceptor.regist_accept_callback(
 		[&](xnet::connection &&conn)
 	{
 		//accept connection
-		conn.regist_recv_callback([id, &conns, &rsp, &send, &recv](void *data, int len)
+		conns.emplace(id, std::move(conn));
+		conns[id].regist_recv_callback([id, &conns](void *data, int len)
 		{
 			//recv callback .
+			(void)data;
 			if (len <= 0)
 			{
 				conns[id].close();
@@ -32,16 +32,16 @@ int main()
 				return;
 			}
 
-			conns[id].async_send(data, len);
+			
 			conns[id].async_recv_some();
-			if (conns.size() > 1)
-			{
-				conns.begin()->second.close();
-				conns.erase(conns.begin());
-			}
+// 			if (conns.size() > 1)
+// 			{
+// 				conns.begin()->second.close();
+// 				conns.erase(conns.begin());
+// 			}
 
 		});
-		conn.regist_send_callback([&](int len) {
+		conns[id].regist_send_callback([&](int len) {
 
 			if (len == -1)
 			{
@@ -49,14 +49,13 @@ int main()
 				conns.erase(conns.find(id));
 				return;
 			}
+			conns[id].async_send("hello world", len);
 		});
-
-		conns.emplace(id, std::move(conn));
 		conns[id].async_recv_some();
-		id++;
+		conns[id].async_send("hello world", 1);
 	});
 	int i = 0;
-	auto timerid = proactor.set_timer(1000, [&] {
+	proactor.set_timer(1000, [&] {
 		std::cout << "timer callback" << std::endl;
 		i++;
 		if (i == 3)

@@ -24,7 +24,7 @@
 #undef FD_SETSIZE
 #endif
 #define FD_SETSIZE      1024
-#define IOCP 0
+#define IOCP 1
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <ws2tcpip.h>//socklen_t 
 #include <winsock2.h>

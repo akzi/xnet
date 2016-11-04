@@ -26,7 +26,7 @@
 #include "detail/iocp.hpp"
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Mswsock.lib")
-#elif £¨__GNUC__ > 4£© && £¨__GNUC_MINOR__ > 8£©
+#elif (__GNUC__ > 4) && (__GNUC_MINOR__ > 8)
 #define _LINUX_
 #define EPOLL
 #include <sys/epoll.h>

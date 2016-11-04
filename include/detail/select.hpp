@@ -304,6 +304,13 @@ namespace select
 			socket_ = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 			if (socket_ == INVALID_SOCKET)
 				throw socket_exception(GetLastError());
+
+			connect_ctx_ = new io_context;
+			assert(connect_ctx_);
+			connect_ctx_->connector_ = this;
+			connect_ctx_->socket_ = socket_;
+			connect_ctx_->status_ = io_context::e_connect;
+
 			u_long nonblock = 1;
 			if (ioctlsocket(socket_, FIONBIO,&nonblock) == INVALID_SOCKET)
 				throw socket_exception(GetLastError());
@@ -327,11 +334,7 @@ namespace select
 				on_connect(false);
 				return;
 			}
-			connect_ctx_ = new io_context;
-			assert(connect_ctx_);
-			connect_ctx_->connector_ = this;
-			connect_ctx_->socket_ = socket_;
-			connect_ctx_->status_ = io_context::e_connect;
+			
 			assert(regist_accept_ctx_);
 			regist_accept_ctx_(connect_ctx_);
 		}
@@ -356,20 +359,22 @@ namespace select
 
 			int err = 0;
 			socklen_t len = sizeof(err);
-			if (!getsockopt(socket_, 
+			if (!!getsockopt(socket_, 
 				SOL_SOCKET, SO_ERROR, (char*)&err, &len))
 					throw socket_exception(GetLastError());
 			if (err == 0)
 			{
 				auto conn = new connection_impl(socket_);
 				
-				conn->send_ctx_ = new io_context;
-				conn->recv_ctx_ = connect_ctx_; 
+				conn->send_ctx_ = connect_ctx_;
+				conn->recv_ctx_ = new io_context;
 				conn->send_ctx_->connection_ = conn;
 				conn->recv_ctx_->connection_ = conn;
 				conn->recv_ctx_->socket_ = socket_;
 				conn->send_ctx_->socket_ = socket_;
-				
+				conn->send_ctx_->status_ = io_context::e_idle;
+				conn->recv_ctx_->status_ = io_context::e_idle;
+
 				conn->regist_send_ctx_ = regist_send_ctx_;
 				conn->unregist_send_ctx_ = unregist_send_ctx_;
 				conn->regist_recv_ctx_ = regist_recv_ctx_;
@@ -514,7 +519,7 @@ namespace select
 			connector_impl *connector = new connector_impl;
 
 			connector->regist_accept_ctx_ = std::bind(
-				&proactor_impl::regist_recv_context,
+				&proactor_impl::regist_send_context,
 				this, std::placeholders::_1);
 
 			connector->regist_recv_ctx_ = std::bind(
@@ -536,6 +541,7 @@ namespace select
 			connector->del_io_context_ = std::bind(
 				&proactor_impl::del_io_context, 
 				this, std::placeholders::_1);
+			return connector;
 		}
 
 		timer_manager::timer_id set_timer(uint32_t timeout, 

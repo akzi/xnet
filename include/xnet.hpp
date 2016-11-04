@@ -24,6 +24,11 @@ namespace xnet
 		{
 			reset_move(std::move(_connection));
 		}
+		connection &operator=(connection &&_connection)
+		{
+			reset_move(std::move(_connection));
+			return *this;
+		}
 		~connection()
 		{
 			close();
@@ -255,6 +260,10 @@ namespace xnet
 				failed_callback_(std::move(error_code));
 			});
 			return *this;
+		}
+		void close()
+		{
+			impl_->close();
 		}
 	private:
 		friend proactor;

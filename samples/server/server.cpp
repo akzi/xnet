@@ -32,7 +32,7 @@ int main()
 				return;
 			}
 
-			conns[id].async_send(rsp.c_str(), (int)rsp.size());
+			conns[id].async_send(data, len);
 			conns[id].async_recv_some();
 			if (conns.size() > 1)
 			{

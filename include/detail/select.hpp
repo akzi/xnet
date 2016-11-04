@@ -195,35 +195,24 @@ namespace select
 		void bind(const std::string &ip, int port)
 		{
 			socket_ = socket(AF_INET, SOCK_STREAM, 0);
-			if (socket_ == INVALID_SOCKET)
-				throw socket_exception(GetLastError());
+			xnet_assert(socket_ == INVALID_SOCKET);
 
 			char flag = 1;
-			if (setsockopt(socket_, SOL_SOCKET, 
-				SO_REUSEADDR, &flag, sizeof(flag)))
-			{
-				throw socket_exception(GetLastError());
-			}
+			xnet_assert(!setsockopt(socket_, SOL_SOCKET,
+				SO_REUSEADDR, &flag, sizeof(flag)));
 
 			struct sockaddr_in addr;
 			addr.sin_family = AF_INET;
 			addr.sin_port = htons(port);
 			addr.sin_addr.s_addr = inet_addr(ip.c_str());
 			
-			if(::bind(socket_, (struct sockaddr*)&addr, sizeof(addr)))
-				throw socket_exception(GetLastError());
-			
-			if(listen(socket_, SOMAXCONN))
-				throw socket_exception(GetLastError());
-			
+			xnet_assert(! ::bind(socket_, (struct sockaddr*)&addr, sizeof(addr)));			
+			xnet_assert(!listen(socket_, SOMAXCONN) == 0);
 			char on = 1;
-			if (setsockopt(socket_, IPPROTO_TCP, 
-				TCP_NODELAY, &on, sizeof(on)))
-				throw socket_exception(GetLastError());
+			xnet_assert(!setsockopt(socket_, IPPROTO_TCP,TCP_NODELAY, &on, sizeof(on)));
 
 			unsigned long bio = 1;
-			if(ioctlsocket(socket_, FIONBIO, &bio))
-				throw socket_exception(GetLastError());
+			xnet_assert(!ioctlsocket(socket_, FIONBIO, &bio));
 
 			accept_ctx_ = new io_context;
 			accept_ctx_->acceptor_ = this;
@@ -302,8 +291,7 @@ namespace select
 		void sync_connect(const std::string &ip, int port)
 		{
 			socket_ = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-			if (socket_ == INVALID_SOCKET)
-				throw socket_exception(GetLastError());
+			xnet_assert(socket_ != INVALID_SOCKET);
 
 			connect_ctx_ = new io_context;
 			assert(connect_ctx_);
@@ -312,8 +300,7 @@ namespace select
 			connect_ctx_->status_ = io_context::e_connect;
 
 			u_long nonblock = 1;
-			if (ioctlsocket(socket_, FIONBIO,&nonblock) == INVALID_SOCKET)
-				throw socket_exception(GetLastError());
+			xnet_assert(ioctlsocket(socket_, FIONBIO, &nonblock) != INVALID_SOCKET);
 
 			sockaddr_in addr;
 			memset(&addr, 0, sizeof(addr));
@@ -327,21 +314,15 @@ namespace select
 				on_connect(true);
 				return;
 			}
-#ifdef _WIN32
-			const int error_code = WSAGetLastError();
+			get_last_errorer errorer;
+			int error_code = errorer();
 			if (error_code != WSAEINPROGRESS &&
 				error_code != WSAEWOULDBLOCK)
 			{
 				on_connect(false);
 				return;
 			}
-#elif _LINUX
-			if (errno != EINTR || errno != EINPROGRESS)
-			{
-				on_connect(false);
-			}
-#endif
-			
+
 			assert(regist_accept_ctx_);
 			regist_accept_ctx_(connect_ctx_);
 		}
@@ -366,9 +347,8 @@ namespace select
 
 			int err = 0;
 			socklen_t len = sizeof(err);
-			if (!!getsockopt(socket_, 
-				SOL_SOCKET, SO_ERROR, (char*)&err, &len))
-					throw socket_exception(GetLastError());
+			xnet_assert(!getsockopt(socket_,
+				SOL_SOCKET, SO_ERROR, (char*)&err, &len));
 			if (err == 0)
 			{
 				auto conn = new connection_impl(socket_);

@@ -114,6 +114,27 @@ namespace xnet
 				return rc;
 			}
 		};
+
+		template <typename T, typename U>
+		struct _get_last_errorer;
+
+		template <typename T>
+		struct _get_last_errorer<T,win32>
+		{
+			int operator()()
+			{
+				return GetLastError();
+			}
+		};
+
+		template <typename T>
+		struct _get_last_errorer<T, linux>
+		{
+			int operator()()
+			{
+				return errno;
+			}
+		};
 	}
 
 #ifdef _WIN32
@@ -126,8 +147,33 @@ namespace xnet
 		detail::_socket_initer<detail::win32>
 	{
 	};
-	struct selecter :detail::_selecter<nullptr_t, detail::win32>
+	struct selecter :
+		detail::_selecter<nullptr_t, detail::win32>
 	{
 	};
+	struct get_last_errorer :
+		detail::_get_last_errorer<nullptr_t, detail::win32>
+	{
+
+	};
+#else
+	template<typename T>
+	struct socket_closer :
+		detail::_socket_closer<T, detail::linux>
+	{
+	};
+	struct socket_initer :
+		detail::_socket_initer<detail::linux>
+	{
+	};
+	struct selecter :detail::_selecter<nullptr_t, detail::linux>
+	{
+	};
+	struct get_last_errorer :
+		detail::_get_last_errorer<nullptr_t, detail::linux>
+	{
+
+	};
 #endif
+
 }

@@ -77,22 +77,22 @@ namespace select
 		}
 		void async_send(std::vector<uint8_t> &data)
 		{
-			assert(send_ctx_->status_ == io_context::e_idle);
+			xnet_assert(send_ctx_->status_ == io_context::e_idle);
 			send_ctx_->reload(data);
 			send_ctx_->status_ = io_context::e_send;
 			if (send_ctx_->last_status_ == io_context::e_send)
 				return;
-			assert(regist_send_ctx_);
+			xnet_assert(regist_send_ctx_);
 			regist_send_ctx_(send_ctx_);
 		}
 		void async_recv(uint32_t len)
 		{
-			assert(recv_ctx_->status_ == io_context::e_idle);
+			xnet_assert(recv_ctx_->status_ == io_context::e_idle);
 			recv_ctx_->reload(len);
 			recv_ctx_->status_ = io_context::e_recv;
 			if (recv_ctx_->last_status_ == io_context::e_recv)
 				return;
-			assert(regist_recv_ctx_);
+			xnet_assert(regist_recv_ctx_);
 			regist_recv_ctx_(recv_ctx_);
 		}
 		void close()
@@ -119,8 +119,8 @@ namespace select
 		{
 			send_ctx_ = new io_context;
 			recv_ctx_ = new io_context;
-			assert(send_ctx_);
-			assert(recv_ctx_);
+			xnet_assert(send_ctx_);
+			xnet_assert(recv_ctx_);
 			send_ctx_->connection_ = this;
 			send_ctx_->socket_ = socket_;
 			recv_ctx_->connection_ = this;
@@ -195,40 +195,33 @@ namespace select
 		void bind(const std::string &ip, int port)
 		{
 			socket_ = socket(AF_INET, SOCK_STREAM, 0);
-			xnet_assert(socket_ == INVALID_SOCKET);
+			xnet_assert(socket_ != INVALID_SOCKET);
 
-			char flag = 1;
-			xnet_assert(!setsockopt(socket_, SOL_SOCKET,
-				SO_REUSEADDR, &flag, sizeof(flag)));
+			setnonblocker nonblocker;
+			xnet_assert(nonblocker(socket_) != INVALID_SOCKET);
+
+			int nodelay = 1;
+			int rc = setsockopt(socket_, IPPROTO_TCP, TCP_NODELAY, (char*)&nodelay, sizeof(int));
+			xnet_assert(rc != -1);
+			int flags = 1;
+			rc = setsockopt(socket_, SOL_SOCKET, SO_REUSEADDR, (char*)&flags, sizeof(int));
+			xnet_assert(rc == 0);
 
 			struct sockaddr_in addr;
 			addr.sin_family = AF_INET;
 			addr.sin_port = htons(port);
 			addr.sin_addr.s_addr = inet_addr(ip.c_str());
 			
-			xnet_assert(! ::bind(socket_, (struct sockaddr*)&addr, sizeof(addr)));			
-			xnet_assert(!listen(socket_, SOMAXCONN) == 0);
-			char on = 1;
-			xnet_assert(!setsockopt(socket_, IPPROTO_TCP,TCP_NODELAY, &on, sizeof(on)));
-
-			unsigned long bio = 1;
-			xnet_assert(!ioctlsocket(socket_, FIONBIO, &bio));
+			xnet_assert(!::bind(socket_, (struct sockaddr*)&addr, sizeof(addr)));			
+			xnet_assert(!listen(socket_, SOMAXCONN));
+			
 
 			accept_ctx_ = new io_context;
 			accept_ctx_->acceptor_ = this;
 			accept_ctx_->socket_ = socket_;
 			accept_ctx_->status_ = io_context::e_accept;
-
+			xnet_assert(regist_accept_ctx_);
 			regist_accept_ctx_(accept_ctx_);
-
-			try
-			{
-				on_accept(true);
-			}
-			catch(socket_exception & e)
-			{
-				std::cout << e.str() << std::endl;
-			}
 		}
 		void close()
 		{
@@ -248,7 +241,7 @@ namespace select
 					return;
 				auto conn = new connection_impl(sock);
 				conn->init();
-				assert(conn);
+				xnet_assert(conn);
 				conn->regist_recv_ctx_ = regist_recv_ctx_;
 				conn->unregist_recv_ctx_ = unregist_recv_ctx_;
 				conn->regist_send_ctx_ = regist_send_ctx_;
@@ -290,17 +283,17 @@ namespace select
 		}
 		void sync_connect(const std::string &ip, int port)
 		{
+			setnonblocker nonblocker;
 			socket_ = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 			xnet_assert(socket_ != INVALID_SOCKET);
-
+			nonblocker(socket_);
 			connect_ctx_ = new io_context;
-			assert(connect_ctx_);
+			xnet_assert(connect_ctx_);
 			connect_ctx_->connector_ = this;
 			connect_ctx_->socket_ = socket_;
 			connect_ctx_->status_ = io_context::e_connect;
 
-			u_long nonblock = 1;
-			xnet_assert(ioctlsocket(socket_, FIONBIO, &nonblock) != INVALID_SOCKET);
+			
 
 			sockaddr_in addr;
 			memset(&addr, 0, sizeof(addr));
@@ -323,7 +316,7 @@ namespace select
 				return;
 			}
 
-			assert(regist_accept_ctx_);
+			xnet_assert(regist_accept_ctx_);
 			regist_accept_ctx_(connect_ctx_);
 		}
 		void close()
@@ -342,8 +335,8 @@ namespace select
 
 		void on_connect(bool result)
 		{
-			assert(success_callback_);
-			assert(failed_callback_);
+			xnet_assert(success_callback_);
+			xnet_assert(failed_callback_);
 
 			int err = 0;
 			socklen_t len = sizeof(err);
@@ -683,7 +676,7 @@ namespace select
 					FD_CLR(io_ctx.socket_, &send_fds_);
 					FD_CLR(io_ctx.socket_, &recv_fds_);
 					FD_CLR(io_ctx.socket_, &except_fds_);
-					shutdown(io_ctx.socket_, SD_SEND);
+					//shutdown(io_ctx.socket_, SD_SEND);
 					socket_closer_(io_ctx.socket_);
 					fd_ctx.socket_ = INVALID_SOCKET;
 					retired = true;
@@ -695,7 +688,7 @@ namespace select
 					FD_CLR(io_ctx.socket_, &send_fds_);
 					FD_CLR(io_ctx.socket_, &recv_fds_);
 					FD_CLR(io_ctx.socket_, &except_fds_);
-					shutdown(io_ctx.socket_, SD_SEND);
+					//shutdown(io_ctx.socket_, SD_SEND);
 					socket_closer_(io_ctx.socket_);
 					fd_ctx.socket_ = INVALID_SOCKET;
 					retired = true;
@@ -761,7 +754,7 @@ namespace select
 			FD_CLR(fd_ctx.socket_, &except_fds_);
 			FD_CLR(fd_ctx.socket_, &recv_fds_);
 			FD_CLR(fd_ctx.socket_, &send_fds_);
-			closesocket(fd_ctx.socket_);
+			socket_closer()(fd_ctx.socket_);
 			if (fd_ctx.recv_ctx_)
 				delete fd_ctx.recv_ctx_;
 			if (fd_ctx.send_ctx_)
@@ -787,7 +780,7 @@ namespace select
 		bool retired = false;
 
 		bool is_stop_ = false;
-		socket_closer<SOCKET> socket_closer_;
+		socket_closer socket_closer_;
 		timer_manager timer_manager_;
 		selecter selecter_;
 	};

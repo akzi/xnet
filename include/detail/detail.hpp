@@ -10,10 +10,15 @@
 #include <algorithm>
 #include <chrono>
 #include <string>
+#include <cstddef>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
 #include "common/guard.hpp"
 #include "common/no_copy_able.hpp"
-#include "detail/timer.hpp"
-#define SELECT 1
+#include "timer.hpp"
+#define EPOLL 1
+#define SELECT 0
 #if defined _WIN32 
 #ifdef FD_SETSIZE
 #undef FD_SETSIZE
@@ -25,13 +30,14 @@
 #include <winsock2.h>
 #include <mswsock.h>
 #include "exceptions.hpp"
-#include "detail/functional.hpp"
-#include "detail/iocp.hpp"
+#include "functional.hpp"
+#include "iocp.hpp"
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Mswsock.lib")
-#elif (__GNUC__ >= 4) && (__GNUC_MINOR__ >= 8)
+#else
 #define _LINUX_
-#define EPOLL
+#define EPOLL 1
+#include <unistd.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -39,17 +45,17 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-typedef int SOCKET
+typedef int SOCKET;
 #define INVALID_SOCKET -1
 #ifndef max_io_events
 #define max_io_events 256
 #endif
-#include "functional.hpp"
 #include "exceptions.hpp"
-#include "detail/epoll.hpp"
+#include "functional.hpp"
+#include "epoll.hpp"
 #endif
-#include "detail/select.hpp"
-#include "xnet.hpp"
+
+#include "select.hpp"
 
 namespace xnet
 {
@@ -62,6 +68,11 @@ namespace xnet
 		typedef iocp::proactor_impl proactor_impl;
 		typedef iocp::connector_impl connector_impl;
 		typedef iocp::socket_exception socket_exception;
+#elif EPOLL
+		typedef epoll::connection_impl connection_impl;
+		typedef epoll::acceptor_impl acceptor_impl;
+		typedef epoll::proactor_impl proactor_impl;
+		typedef epoll::connector_impl connector_impl;
 #elif SELECT
 		typedef select::connection_impl connection_impl;
 		typedef select::acceptor_impl acceptor_impl;

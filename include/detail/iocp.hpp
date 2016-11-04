@@ -61,7 +61,7 @@ namespace iocp
 			buffer_.resize(len ? len: recv_some_);
 			WSABuf_.buf = (TCHAR*)buffer_.data();
 			WSABuf_.len = (ULONG)buffer_.size();
-			assert(buffer_.size() == (len ? len : recv_some_));
+			xnet_assert(buffer_.size() == (len ? len : recv_some_));
 		}
 	};
 
@@ -131,7 +131,7 @@ namespace iocp
 		}
 		void async_send(std::vector<uint8_t> &data)
 		{
-			assert(send_overlapped_->status_ ==
+			xnet_assert(send_overlapped_->status_ ==
 				overLapped_context::e_idle);
 
 			DWORD bytes = 0;
@@ -152,7 +152,7 @@ namespace iocp
 		}
 		void async_recv(uint32_t len)
 		{
-			assert(recv_overlapped_->status_ == 
+			xnet_assert(recv_overlapped_->status_ == 
 				overLapped_context::e_idle);
 
 			DWORD bytes = 0; 
@@ -283,7 +283,7 @@ namespace iocp
 			{
 				throw socket_exception(WSAGetLastError());
 			}
-			assert(acceptex_func_);
+			xnet_assert(acceptex_func_);
 
 			if(::CreateIoCompletionPort((HANDLE)listener_sock_,
 				IOCompletionPort_,
@@ -322,7 +322,7 @@ namespace iocp
 			{
 				throw socket_exception(WSAGetLastError());
 			}
-			assert(acceptor_callback_);
+			xnet_assert(acceptor_callback_);
 			accept_socket_ = INVALID_SOCKET;
 			do_accept();
 			acceptor_callback_(conn);
@@ -495,7 +495,7 @@ namespace iocp
 				else
 				{
 					auto str = std::string(errmsg, strlen(errmsg));
-					assert(failed_callback_);
+					xnet_assert(failed_callback_);
 					failed_callback_(str);
 				}
 				return;
@@ -565,7 +565,7 @@ namespace iocp
 					delete overlapped;
 					break;
 				}
-				assert(overlapped);
+				xnet_assert(overlapped);
 				if (status == FALSE)
 					handle_completion_failed(overlapped, bytes);
 				else
@@ -584,14 +584,14 @@ namespace iocp
 		acceptor_impl *get_acceptor()
 		{
 			acceptor_impl *acceptor = new acceptor_impl;
-			assert(IOCompletionPort_);
+			xnet_assert(IOCompletionPort_);
 			acceptor->IOCompletionPort_ = IOCompletionPort_;
 			return acceptor;
 		}
 		connector_impl *get_connector()
 		{
 			connector_impl *acceptor = new connector_impl;
-			assert(IOCompletionPort_);
+			xnet_assert(IOCompletionPort_);
 			acceptor->IOCompletionPort_ = IOCompletionPort_;
 			return acceptor;
 		}

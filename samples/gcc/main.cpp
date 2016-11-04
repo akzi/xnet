@@ -12,7 +12,6 @@
 #include <string.h>
 #include <cassert>
 #include <memory.h>
-#include "include/hello.h"
 using namespace std;
 
 #define MAXLINE 5
@@ -47,7 +46,6 @@ int main(int argc, char* argv[])
 
     portnumber = 9001;
 
-	hello::say_hello();
 
     //声明epoll_event结构体的变量,ev用于注册事件,数组用于回传要处理的事件
 

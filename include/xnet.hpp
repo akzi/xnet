@@ -17,7 +17,7 @@ namespace xnet
 		connection(detail::connection_impl *impl)
 			:impl_(impl)
 		{
-			assert(impl);
+			xnet_assert(impl);
 			init();
 		}
 		connection(connection &&_connection)
@@ -46,9 +46,9 @@ namespace xnet
 		}
 		void async_send(const void *data, int len)
 		{
-			assert(len);
-			assert(data);
-			assert(impl_);
+			xnet_assert(len);
+			xnet_assert(data);
+			xnet_assert(impl_);
 
 			std::vector<uint8_t> buffer_;
 			buffer_.resize(len);
@@ -69,8 +69,8 @@ namespace xnet
 		{
 			try
 			{
-				assert(len);
-				assert(impl_);
+				xnet_assert(len);
+				xnet_assert(impl_);
 				 impl_->async_recv(len);
 			}
 			catch (detail::socket_exception &e)
@@ -83,7 +83,7 @@ namespace xnet
 		{
 			try
 			{
-				assert(impl_);
+				xnet_assert(impl_);
 				impl_->async_recv(0);
 			}
 			catch (detail::socket_exception &e)
@@ -120,12 +120,12 @@ namespace xnet
 		{
 			impl_->bind_recv_callback(
 				[this](void *data, int len) {
-				assert(recv_callback_);
+				xnet_assert(recv_callback_);
 				recv_callback_(data, len);
 			});
 			impl_->bind_send_callback(
 				[this](int len) {
-				assert(send_callback_);
+				xnet_assert(send_callback_);
 				send_callback_(len);
 			});
 		}
@@ -199,7 +199,7 @@ namespace xnet
 			impl_->regist_accept_callback(
 				[this](detail::connection_impl *conn)
 			{
-				assert(conn);
+				xnet_assert(conn);
 				accept_callback_(connection(conn));
 			});
 		}
@@ -254,11 +254,15 @@ namespace xnet
 		connector& bind_fail_callback(failed_callback_t callback)
 		{
 			failed_callback_ = callback;
+			trace;
+			xnet_assert(impl_);
+			trace;
 			impl_->bind_failed_callback(
 				[this](std::string error_code)
 			{
 				failed_callback_(std::move(error_code));
 			});
+			trace;
 			return *this;
 		}
 		void close()
@@ -276,7 +280,7 @@ namespace xnet
 		{
 			if (this != &_connector)
 			{
-				assert(_connector.impl_);
+				xnet_assert(_connector.impl_);
 				impl_ = _connector.impl_;
 				success_callback_ = std::move(_connector.success_callback_);
 				failed_callback_ = std::move(_connector.failed_callback_);
@@ -325,7 +329,7 @@ namespace xnet
 		}
 		bool run()
 		{
-			assert(impl);
+			xnet_assert(impl);
 			try
 			{
 				impl->run();
@@ -339,20 +343,20 @@ namespace xnet
 		}
 		void stop()
 		{
-			assert(impl);
+			xnet_assert(impl);
 			impl->stop();
 		}
 		
 		acceptor get_acceptor()
 		{
-			assert(impl);
+			xnet_assert(impl);
 			acceptor acc;
 			acc.init(impl->get_acceptor());
 			return acc;
 		}
 		connector get_connector()
 		{
-			assert(impl);
+			xnet_assert(impl);
 			connector connector_;
 			connector_.init(impl->get_connector());
 			return connector_;

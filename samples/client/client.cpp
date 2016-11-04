@@ -5,11 +5,13 @@ int main()
 	xnet::proactor proactor;
 
 	auto connector = proactor.get_connector();
+	trace;
 
 	connector.bind_fail_callback([&](std::string error_code) {
 		std::cout << error_code.c_str() << std::endl;
 		connector.close();
 	});
+	trace;
 	const std::string req = "hello world";
 	
 	std::map<int, xnet::connection> conns;
@@ -42,13 +44,17 @@ int main()
 		conns[conn_id].async_recv_some();
 		
 	};
+	trace;
+
 	connector.bind_success_callback([&](xnet::connection &&_conn) mutable 
 	{
 		conn_run(std::move(_conn), id);
 		id++;
 		connector.sync_connect("127.0.0.1", 9001);
 	});
+	trace;
 
 	connector.sync_connect("127.0.0.1", 9001);
+	trace;
 	proactor.run();
 }

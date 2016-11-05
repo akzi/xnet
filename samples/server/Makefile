@@ -8,7 +8,8 @@ CFLAGS = -g -W \
 -Winvalid-pch \
 -std=c++11 \
 -I ./../../include
-
+run:server
+	./server
 server:rm_server
 	g++ server.cpp $(CFLAGS) -o server
 rm_server:

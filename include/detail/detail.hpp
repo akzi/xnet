@@ -14,17 +14,17 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#define trace std::cout << __FILE__ << " "<< __LINE__<< std::endl;std::cout.flush();
 #include "common/guard.hpp"
 #include "common/no_copy_able.hpp"
 #include "timer.hpp"
-#define EPOLL 1
-#define SELECT 0
+#define SELECT 1
 #if defined _WIN32 
 #ifdef FD_SETSIZE
 #undef FD_SETSIZE
 #endif
 #define FD_SETSIZE      1024
-#define IOCP 1
+#define IOCP 0
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <ws2tcpip.h>//socklen_t 
 #include <winsock2.h>
@@ -36,7 +36,7 @@
 #pragma comment(lib, "Mswsock.lib")
 #else
 #define _LINUX_
-#define EPOLL 1
+#define EPOLL 0
 #include <unistd.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
@@ -49,6 +49,8 @@ typedef int SOCKET;
 #define INVALID_SOCKET -1
 #ifndef max_io_events
 #define max_io_events 256
+#define  SD_SEND SHUT_WR 
+#define  SD_RECEIVE SHUT_RD 
 #endif
 #include "exceptions.hpp"
 #include "functional.hpp"

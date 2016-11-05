@@ -19,47 +19,45 @@ int main()
 	acceptor.regist_accept_callback(
 		[&](xnet::connection &&conn)
 	{
-		//accept connection
 		conns.emplace(id, std::move(conn));
-		conns[id].regist_recv_callback([id, &conns](void *data, int len)
+		
+		conns[id].regist_recv_callback([id,&rsp, &conns](void *data, int len)
 		{
-			//recv callback .
-			(void)data;
 			if (len <= 0)
 			{
+				trace;
 				conns[id].close();
 				conns.erase(conns.find(id));
 				return;
 			}
-
-			
-			conns[id].async_recv_some();
-// 			if (conns.size() > 1)
-// 			{
-// 				conns.begin()->second.close();
-// 				conns.erase(conns.begin());
-// 			}
-
+			//std::cout << (char*)data << std::endl;;
+			trace;
+			conns[id].async_send(rsp.data(), rsp.size());
+			conns[id].close();
+			std::cout << "conns :" << conns.size() << std::endl;
+			if(conns.find(id) != conns.end())
+				conns.erase(conns.find(id));
 		});
-		conns[id].regist_send_callback([&](int len) {
-
+		conns[id].regist_send_callback([&](int len) 
+		{
 			if (len == -1)
 			{
+				trace;
 				conns[id].close();
 				conns.erase(conns.find(id));
 				return;
 			}
-			conns[id].async_send("hello world", len);
 		});
 		conns[id].async_recv_some();
-		conns[id].async_send("hello world", 1);
+// 		conns[id].close();
+// 		conns.erase(conns.find(id));
+		id++;
+		trace;
 	});
 	int i = 0;
 	proactor.set_timer(1000, [&] {
 		std::cout << "timer callback" << std::endl;
 		i++;
-		if (i == 3)
-			return false;//not repeat
 		return true;//repeat timer
 	});
 

@@ -14,7 +14,7 @@ namespace iocp
 		{
 			memset(this, 0, sizeof(OVERLAPPED));
 		}
-
+		
 		enum
 		{
 			e_accept = 1,
@@ -115,7 +115,6 @@ namespace iocp
 					recv_overlapped_->connection_ = NULL;
 					recv_overlapped_ = NULL;
 				}
-				
 			}
 			delete this;
 		}
@@ -304,7 +303,8 @@ namespace iocp
 		{
 			if(status == false)
 			{
-				std::cout << "acceptor callback,error:" << WSAGetLastError() << std::endl;
+				std::cout << "acceptor callback,error:" 
+					<< WSAGetLastError() << std::endl;
 				return;
 			}
 			if(setsockopt(accept_socket_,

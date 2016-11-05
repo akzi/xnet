@@ -677,7 +677,7 @@ namespace select
 					FD_CLR(io_ctx.socket_, &send_fds_);
 					FD_CLR(io_ctx.socket_, &recv_fds_);
 					FD_CLR(io_ctx.socket_, &except_fds_);
-					//shutdown(io_ctx.socket_, SD_SEND);
+					shutdown(io_ctx.socket_, SD_SEND);
 					socket_closer_(io_ctx.socket_);
 					fd_ctx.socket_ = INVALID_SOCKET;
 					retired = true;
@@ -689,7 +689,7 @@ namespace select
 					FD_CLR(io_ctx.socket_, &send_fds_);
 					FD_CLR(io_ctx.socket_, &recv_fds_);
 					FD_CLR(io_ctx.socket_, &except_fds_);
-					//shutdown(io_ctx.socket_, SD_SEND);
+					shutdown(io_ctx.socket_, SD_SEND);
 					socket_closer_(io_ctx.socket_);
 					fd_ctx.socket_ = INVALID_SOCKET;
 					retired = true;

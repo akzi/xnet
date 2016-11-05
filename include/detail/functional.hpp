@@ -42,7 +42,11 @@ namespace xnet
 					(long)(timeout / 1000),
 					(long)(timeout % 1000 * 1000)
 				};
-				int rc = ::select(0, readfds, writefds, exceptfds, timeout ? &tv : NULL);
+				int rc = ::select(0,
+								  readfds,
+								  writefds, 
+								  exceptfds,
+								  timeout ? &tv : NULL);
 				xnet_assert(rc != SOCKET_ERROR);
 				return rc;
 			}
@@ -106,7 +110,11 @@ namespace xnet
 					(long)(timeout / 1000),
 					(long)(timeout % 1000 * 1000)
 				};
-				int rc = ::select(maxfds + 1, readfds, writefds, exceptfds, timeout ? &tv : NULL);
+				int rc = ::select(maxfds + 1, 
+								  readfds, 
+								  writefds, 
+								  exceptfds, 
+								  timeout ? &tv : NULL);
 				if (rc == -1) {
 					xnet_assert(errno == EINTR);
 					return 0;

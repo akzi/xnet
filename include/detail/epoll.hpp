@@ -507,7 +507,7 @@ namespace epoll
 				}
 				if(del_event_ctx_.size())
 				{
-					std::cout << "del_event_ctx_ "<<del_event_ctx_.size() << std::endl;
+					//std::cout << "del_event_ctx_ "<<del_event_ctx_.size() << std::endl;
 					std::cout.flush();
 					for (auto itr: del_event_ctx_)
 					{
@@ -801,14 +801,12 @@ namespace epoll
 					io_ctx.to_send_ - io_ctx.send_bytes_, 0);
 				if(bytes <= 0)
 				{
-					trace;
 					io_ctx.connection_->send_callback(false);
 					return;
 				}
 				io_ctx.send_bytes_ += bytes;
 				if(io_ctx.to_send_ == io_ctx.send_bytes_)
 				{
-					trace;
 					io_ctx.connection_->send_callback(true);
 				}
 			}
@@ -820,14 +818,12 @@ namespace epoll
 					io_ctx.to_send_ - io_ctx.send_bytes_, 0);
 				if(bytes <= 0)
 				{
-					trace;
 					unregist_event_context(event_ctx);
 					return;
 				}
 				io_ctx.send_bytes_ += bytes;
 				if(io_ctx.to_send_ == io_ctx.send_bytes_)
 				{
-					trace;
 					shutdown(event_ctx->socket_, SHUT_WR);
 					unregist_event_context(event_ctx);
 					return;

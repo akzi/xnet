@@ -25,24 +25,22 @@ int main()
 		{
 			if (len <= 0)
 			{
-				trace;
 				conns[id].close();
 				conns.erase(conns.find(id));
 				return;
 			}
 			//std::cout << (char*)data << std::endl;;
-			trace;
 			conns[id].async_send(rsp.data(), rsp.size());
-			conns[id].close();
-			std::cout << "conns :" << conns.size() << std::endl;
-			if(conns.find(id) != conns.end())
-				conns.erase(conns.find(id));
+			conns[id].async_recv_some();
+			//conns[id].close();
+			//std::cout << "conns :" << conns.size() << std::endl;
+			//if(conns.find(id) != conns.end())
+			//	conns.erase(conns.find(id));
 		});
 		conns[id].regist_send_callback([&](int len) 
 		{
 			if (len == -1)
 			{
-				trace;
 				conns[id].close();
 				conns.erase(conns.find(id));
 				return;
@@ -52,12 +50,8 @@ int main()
 // 		conns[id].close();
 // 		conns.erase(conns.find(id));
 		id++;
-		trace;
 	});
-	int i = 0;
 	proactor.set_timer(1000, [&] {
-		std::cout << "timer callback" << std::endl;
-		i++;
 		return true;//repeat timer
 	});
 

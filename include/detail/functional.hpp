@@ -71,10 +71,10 @@ namespace xnet
 		{
 			int operator()(int sock)
 			{
-				int opts;
-				opts = fcntl(sock, F_GETFL);
-				opts = opts | O_NONBLOCK;
-				return fcntl(sock, F_SETFL, opts);
+				int flags = fcntl(sock, F_GETFL, 0);
+				if(flags == -1)
+					flags = 0;
+				return fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 			}
 		};
 

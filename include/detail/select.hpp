@@ -307,37 +307,35 @@ namespace select
 				on_connect(true);
 				return;
 			}
-			get_last_errorer errorer;
-			int error_code = errorer();
-			if (error_code != WSAEINPROGRESS&&
-				error_code != WSAEWOULDBLOCK)
-			{
-				on_connect(false);
-				return;
-			}
-
 			xnet_assert(regist_accept_ctx_);
 			regist_accept_ctx_(connect_ctx_);
 		}
 		void close()
 		{
-			if(connect_ctx_)
-			{
-				connect_ctx_->status_ = io_context::e_close;
-				connect_ctx_->connector_ = NULL;
-				connect_ctx_->socket_ = INVALID_SOCKET;
-				del_io_context_(connect_ctx_);
-			}
-			delete this;
+			reset_connect_context();
 		}
 	private:
 		friend class proactor_impl;
 
+		void reset_connect_context()
+		{
+			if(connect_ctx_)
+			{
+				connect_ctx_->status_ = io_context::e_close;
+				connect_ctx_->connector_ = NULL;
+				del_io_context_(connect_ctx_);
+				connect_ctx_ = NULL;
+			}
+		}
 		void on_connect(bool result)
 		{
-			xnet_assert(result);
-			xnet_assert(success_callback_);
 			xnet_assert(failed_callback_);
+			xnet_assert(success_callback_);
+			if(!result)
+			{
+				reset_connect_context();
+				return failed_callback_("connect failed");
+			}
 
 			int err = 0;
 			socklen_t len = sizeof(err);
@@ -368,7 +366,7 @@ namespace select
 			}
 			else
 			{
-				failed_callback_("connect failed");
+				return failed_callback_("connect failed");
 			}
 		}
 		SOCKET socket_ = INVALID_SOCKET;
@@ -407,20 +405,23 @@ namespace select
 		void init()
 		{
 			socket_initer::get_instance();
+			FD_ZERO(&source_recv_fds_);
+			FD_ZERO(&source_send_fds_);
+			FD_ZERO(&source_except_fds_);
 		}
 		void run()
 		{
 			while(!is_stop_)
 			{
-				memcpy(&readfds, &recv_fds_, sizeof recv_fds_);
-				memcpy(&writefds, &send_fds_, sizeof send_fds_);
-				memcpy(&exceptfds, &except_fds_, sizeof except_fds_);
+				memcpy(&recv_fds_, &source_recv_fds_, sizeof source_recv_fds_);
+				memcpy(&send_fds_, &source_send_fds_, sizeof source_send_fds_);
+				memcpy(&except_fds_, &source_except_fds_, sizeof source_except_fds_);
 
 				int64_t timeout = timer_manager_.do_timer();							
 				timeout = timeout > 0 ? timeout : 1000;
 
-				int rc = selecter_ (maxfd_, &readfds, &writefds, 
-					&exceptfds, (uint32_t)timeout);
+				int rc = selecter_ (maxfd_, &recv_fds_, &send_fds_, 
+					&except_fds_, (uint32_t)timeout);
 
 				if (rc == 0)
 					continue;
@@ -429,15 +430,15 @@ namespace select
 				{
 					if(fd_ctxs_[i].socket_ == INVALID_SOCKET)
 						continue;
-					if (FD_ISSET(fd_ctxs_[i].socket_, &exceptfds))
+					if (FD_ISSET(fd_ctxs_[i].socket_, &except_fds_))
 						except_callback(fd_ctxs_[i]);
 					if(fd_ctxs_[i].socket_ == INVALID_SOCKET)
 						continue;
-					if(FD_ISSET(fd_ctxs_[i].socket_, &writefds))
+					if(FD_ISSET(fd_ctxs_[i].socket_, &send_fds_))
 						writeable_callback(fd_ctxs_[i]);
 					if(fd_ctxs_[i].socket_ == INVALID_SOCKET)
 						continue;
-					if(FD_ISSET(fd_ctxs_[i].socket_, &readfds))
+					if(FD_ISSET(fd_ctxs_[i].socket_, &recv_fds_))
 						readable_callback(fd_ctxs_[i]);
 				}
 
@@ -463,7 +464,7 @@ namespace select
 		}
 		void stop()
 		{
-
+			is_stop_ = true;
 		}
 		acceptor_impl *get_acceptor()
 		{
@@ -544,7 +545,7 @@ namespace select
 					itr.recv_ctx_ = io_ctx_;
 					if (io_ctx_->socket_ > maxfd_)
 						maxfd_ = io_ctx_->socket_;
-					FD_SET(itr.socket_, &recv_fds_);
+					FD_SET(itr.socket_, &source_recv_fds_);
 					return;
 				}
 			}
@@ -552,14 +553,14 @@ namespace select
 			fd_ctx.socket_ = io_ctx_->socket_;
 			fd_ctx.recv_ctx_ = io_ctx_;
 			fd_ctxs_.push_back(fd_ctx);
-			FD_SET(io_ctx_->socket_, &recv_fds_);
-			FD_SET(io_ctx_->socket_, &except_fds_);
+			FD_SET(io_ctx_->socket_, &source_recv_fds_);
+			FD_SET(io_ctx_->socket_, &source_except_fds_);
 			if (io_ctx_->socket_ > maxfd_)
 				maxfd_ = io_ctx_->socket_;
 		}
 		void unregist_recv_context(io_context *io_ctx_)
 		{
-			FD_CLR(io_ctx_->socket_, &recv_fds_);
+			FD_CLR(io_ctx_->socket_, &source_recv_fds_);
 		}
 
 		void regist_send_context(io_context *io_ctx_)
@@ -569,7 +570,7 @@ namespace select
 				if (itr.socket_ == io_ctx_->socket_)
 				{
 					itr.send_ctx_= io_ctx_;
-					FD_SET(itr.socket_, &send_fds_);
+					FD_SET(itr.socket_, &source_send_fds_);
 					if (io_ctx_->socket_ > maxfd_)
 						maxfd_ = io_ctx_->socket_;
 					return;
@@ -579,14 +580,14 @@ namespace select
 			fd_ctx.socket_ = io_ctx_->socket_;
 			fd_ctx.send_ctx_ = io_ctx_;
 			fd_ctxs_.push_back(fd_ctx);
-			FD_SET(io_ctx_->socket_, &send_fds_);
-			FD_SET(io_ctx_->socket_, &except_fds_);
+			FD_SET(io_ctx_->socket_, &source_send_fds_);
+			FD_SET(io_ctx_->socket_, &source_except_fds_);
 			if (io_ctx_->socket_ > maxfd_)
 				maxfd_ = io_ctx_->socket_;
 		}
 		void unregist_send_context(io_context *io_ctx_)
 		{
-			FD_CLR(io_ctx_->socket_, &send_fds_);
+			FD_CLR(io_ctx_->socket_, &source_send_fds_);
 		}
 		void del_io_context(io_context *io_ctx_)
 		{
@@ -596,6 +597,9 @@ namespace select
 				{
 					if (itr.socket_ > maxfd_)
 						maxfd_ = INVALID_SOCKET;
+					FD_CLR(itr.socket_, &source_send_fds_);
+					FD_CLR(itr.socket_, &source_recv_fds_);
+					FD_CLR(itr.socket_, &source_except_fds_);
 					FD_CLR(itr.socket_, &send_fds_);
 					FD_CLR(itr.socket_, &recv_fds_);
 					FD_CLR(itr.socket_, &except_fds_);
@@ -674,6 +678,9 @@ namespace select
 					io_ctx.to_send_ - io_ctx.send_bytes_, 0);
 				if (bytes <= 0)
 				{
+					FD_CLR(io_ctx.socket_, &source_send_fds_);
+					FD_CLR(io_ctx.socket_, &source_recv_fds_);
+					FD_CLR(io_ctx.socket_, &source_except_fds_);
 					FD_CLR(io_ctx.socket_, &send_fds_);
 					FD_CLR(io_ctx.socket_, &recv_fds_);
 					FD_CLR(io_ctx.socket_, &except_fds_);
@@ -686,6 +693,9 @@ namespace select
 				io_ctx.send_bytes_ += bytes;
 				if (io_ctx.to_send_ == io_ctx.send_bytes_)
 				{
+					FD_CLR(io_ctx.socket_, &source_send_fds_);
+					FD_CLR(io_ctx.socket_, &source_recv_fds_);
+					FD_CLR(io_ctx.socket_, &source_except_fds_);
 					FD_CLR(io_ctx.socket_, &send_fds_);
 					FD_CLR(io_ctx.socket_, &recv_fds_);
 					FD_CLR(io_ctx.socket_, &except_fds_);
@@ -752,9 +762,13 @@ namespace select
 		}
 		void del_fd_context(fd_context fd_ctx)
 		{
+			FD_CLR(fd_ctx.socket_, &source_except_fds_);
+			FD_CLR(fd_ctx.socket_, &source_recv_fds_);
+			FD_CLR(fd_ctx.socket_, &source_send_fds_);
 			FD_CLR(fd_ctx.socket_, &except_fds_);
 			FD_CLR(fd_ctx.socket_, &recv_fds_);
 			FD_CLR(fd_ctx.socket_, &send_fds_);
+
 			socket_closer()(fd_ctx.socket_);
 			if (fd_ctx.recv_ctx_)
 				delete fd_ctx.recv_ctx_;
@@ -768,13 +782,13 @@ namespace select
 		}
 		fd_context_vec fd_ctxs_;
 
+		fd_set source_recv_fds_;
+		fd_set source_send_fds_;
+		fd_set source_except_fds_;
+
 		fd_set recv_fds_;
 		fd_set send_fds_;
 		fd_set except_fds_;
-
-		fd_set readfds;
-		fd_set writefds;
-		fd_set exceptfds;
 
 		SOCKET maxfd_ = INVALID_SOCKET ;
 

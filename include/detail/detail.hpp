@@ -36,7 +36,7 @@
 #pragma comment(lib, "Mswsock.lib")
 #else
 #define _LINUX_
-#define EPOLL 1
+#define EPOLL 0
 #include <unistd.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>

@@ -285,7 +285,7 @@ namespace epoll
 				{
 					if(errno == EAGAIN  || errno == EWOULDBLOCK)
 						return;
-					std::cout <<perror(errno) << std::endl;
+					std::cout << strerror(errno) << std::endl;
 					return;
 				}
 				auto conn = new connection_impl(sock);
@@ -359,10 +359,10 @@ namespace epoll
 				(struct sockaddr*)&addr, sizeof(addr));
 			if(res == 0)
 			{
-				trace;
 				on_connect(true);
 				return;
 			}
+			trace;
 			xnet_assert(errno == EINTR || errno == EINPROGRESS);
 
 			xnet_assert(regist_connector_);
@@ -733,6 +733,7 @@ namespace epoll
 			del_event_ctx_.push_back(event_ctx);
 			xnet_assert(!epoll_ctl(epfd_, EPOLL_CTL_DEL,
 						event_ctx->socket_, &event_ctx->ev_));
+			std::cout << event_ctx->socket_ << std::endl;
 			close(event_ctx->socket_);
 			event_ctx->socket_ = -1;
 		}

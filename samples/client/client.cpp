@@ -9,7 +9,6 @@ int main()
 	connector.bind_fail_callback([&](std::string error_code) {
 		std::cout << error_code.c_str() << std::endl;
 		connector.close();
-		proactor.stop();
 	});
 
 	const std::string req = "hello world";
@@ -30,7 +29,7 @@ int main()
 			std::cout << (char*)data << std::endl;
  			conns[conn_id].close();
  			conns.erase(conns.find(conn_id));
-			//conns[conn_id].async_recv_some();
+			
 		});
 
 		conns[conn_id].regist_send_callback([&](int len)
@@ -41,7 +40,6 @@ int main()
  				conns.erase(conns.find(conn_id));
  				return;
  			}
-			conns[conn_id].async_send(req.c_str(), (int)req.size());
 		});
 		conns[conn_id].async_send(req.c_str(), (int)req.size());
 		conns[conn_id].async_recv_some();
@@ -50,11 +48,12 @@ int main()
 
 	connector.bind_success_callback([&](xnet::connection &&_conn) mutable 
 	{
-		trace;
 		conn_run(std::move(_conn), id);
 		id++;
-		connector.sync_connect("127.0.0.1", 9001);
+		connector.sync_connect("192.168.0.9", 9001);
 	});
-	connector.sync_connect("127.0.0.1", 9001);
+	connector.sync_connect("192.168.0.9", 9001);
 	proactor.run();
+
+	return  0;
 }

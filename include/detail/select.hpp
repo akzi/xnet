@@ -105,7 +105,7 @@ namespace select
 			{
 				send_ctx_->status_ |= io_context::e_close;
 			}
-			if(in_callback_)
+			if(!!in_callback_)
 				close_flag_ = true;
 			else
 				delete this;
@@ -130,12 +130,12 @@ namespace select
 		{
 			send_ctx_->last_status_ = send_ctx_->status_;
 			send_ctx_->status_ = io_context::e_idle;
-			in_callback_ = true;
+			++in_callback_;
 			if(status)
 				send_callback_handle_(send_ctx_->send_bytes_);
 			else
 				send_callback_handle_(-1);
-			in_callback_ = false;
+			--in_callback_;
 			if(!close_flag_ && send_ctx_->status_ != io_context::e_send)
 			{
 				send_ctx_->last_status_ = io_context::e_idle;
@@ -149,13 +149,13 @@ namespace select
 			recv_ctx_->last_status_ = recv_ctx_->status_;
 			recv_ctx_->status_ = io_context::e_idle;
 			recv_ctx_->buffer_.push_back('\0');
-			in_callback_ = true;
+			++in_callback_;
 			if (status)
 				recv_callback_handle_(recv_ctx_->buffer_.data(),
 									  recv_ctx_->recv_bytes_);
 			else
 				recv_callback_handle_(NULL, -1);
-			in_callback_ = false;
+			--in_callback_;
 			if(!close_flag_ && recv_ctx_->status_ != io_context::e_recv)
 			{
 				recv_ctx_->last_status_ = io_context::e_idle;
@@ -166,7 +166,7 @@ namespace select
 		}
 		SOCKET socket_ = INVALID_SOCKET;
 		bool close_flag_ = false;
-		bool in_callback_ = false;
+		int in_callback_ = false;
 		io_context *send_ctx_ = NULL;
 		io_context *recv_ctx_ = NULL;
 

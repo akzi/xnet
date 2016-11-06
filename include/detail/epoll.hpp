@@ -283,8 +283,9 @@ namespace epoll
 				SOCKET sock = ::accept(socket_, NULL, NULL);
 				if(sock == -1)
 				{
-					if(errno != EAGAIN  && errno != EWOULDBLOCK)
-						throw socket_exception(errno);
+					if(errno == EAGAIN  || errno == EWOULDBLOCK)
+						return;
+					std::cout <<perror(errno) << std::endl;
 					return;
 				}
 				auto conn = new connection_impl(sock);
@@ -323,11 +324,6 @@ namespace epoll
 	public:
 		connector_impl()
 		{
-			connect_ctx_ = new io_context;
-			xnet_assert(connect_ctx_);
-			connect_ctx_->connector_ = this;
-			connect_ctx_->socket_ = socket_;
-			connect_ctx_->status_ = io_context::e_connect;
 		}
 		~connector_impl()
 		{ }
@@ -343,22 +339,27 @@ namespace epoll
 		}
 		void sync_connect(const std::string &ip, int port)
 		{
+			xnet_assert(!connect_ctx_);
 			socket_ = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-			if(socket_ == -1)
-				throw socket_exception(errno);
-	
+			xnet_assert(socket_ != -1);
 			setnonblocker nonblocker;
-			nonblocker(socket_);
+			xnet_assert(!nonblocker(socket_));
 			sockaddr_in addr;
 			memset(&addr, 0, sizeof(addr));
 			addr.sin_family = AF_INET;
 			addr.sin_addr.s_addr = inet_addr(ip.c_str());
 			addr.sin_port = htons(port);
+			connect_ctx_ = new io_context;
+			xnet_assert(connect_ctx_);
+			connect_ctx_->connector_ = this;
+			connect_ctx_->socket_ = socket_;
+			connect_ctx_->status_ = io_context::e_connect;
 
 			int res = connect(socket_, 
 				(struct sockaddr*)&addr, sizeof(addr));
 			if(res == 0)
 			{
+				trace;
 				on_connect(true);
 				return;
 			}
@@ -368,17 +369,19 @@ namespace epoll
 			xnet_assert(regist_connect_ctx_);
 			regist_connector_(this);
 			regist_connect_ctx_(connect_ctx_);
+			trace;
 		}
 		void close()
 		{
 			if(connect_ctx_)
 			{
-				connect_ctx_->status_ = io_context::e_close;
-				connect_ctx_->connector_ = NULL;
-				connect_ctx_->socket_ = INVALID_SOCKET;
 				unregist_connector_(this);
+				connect_ctx_ = NULL;
 			}
-			delete this;
+			if(!in_callback_)
+				delete this;
+			else
+				close_flag_ = true;
 		}
 	private:
 		friend class proactor_impl;
@@ -389,7 +392,11 @@ namespace epoll
 			{
 				unregist_connector_(this);
 				connect_ctx_ = NULL;
+				in_callback_ = true;
 				failed_callback_("connect failed");
+				in_callback_ = false;
+				if(close_flag_)
+					delete this;
 				return;
 			}
 			xnet_assert(success_callback_);
@@ -404,6 +411,7 @@ namespace epoll
 								&len);
 			if (rc < 0)
 			{
+				trace;
 				if (errno == EINTR || errno == EINPROGRESS)
 					return;
 				xnet_assert(false);
@@ -412,7 +420,8 @@ namespace epoll
 			if(err == 0)
 			{
 				auto conn = new connection_impl(socket_);
-
+				xnet_assert(connect_ctx_);
+				conn->socket_ = socket_;
 				conn->recv_ctx_ = connect_ctx_;
 				conn->recv_ctx_->status_ = io_context::e_idle;
 				conn->recv_ctx_->connection_ = conn;
@@ -432,13 +441,23 @@ namespace epoll
 
 				socket_ = INVALID_SOCKET;
 				connect_ctx_ = NULL;
+				in_callback_ = true;
 				success_callback_(conn);
+				in_callback_ = false;
+				if(close_flag_)
+					delete this;
 			}
 			else
 			{
+				in_callback_ = true;
 				failed_callback_("connect failed");
+				in_callback_ = false;
+				if(close_flag_)
+					delete this;
 			}
 		}
+		bool in_callback_ = false;
+		bool close_flag_ = false;
 		SOCKET socket_ = INVALID_SOCKET;
 		io_context *connect_ctx_ = NULL;
 
@@ -479,7 +498,7 @@ namespace epoll
 			{
 				auto timeout = timer_manager_.do_timer();
 				if(timeout == 0) timeout = 1000;
-				int n = epoll_wait(epfd_, events_, max_io_events, timeout);
+				int n = epoll_wait(epfd_, events_, MAXIOEVENTS, timeout);
 				if(n == -1)
 				{
 					xnet_assert(errno == EINTR);
@@ -602,7 +621,7 @@ namespace epoll
 		}
 		void init()
 		{
-			epfd_ = epoll_create(max_io_events);
+			epfd_ = epoll_create(MAXIOEVENTS);
 		}
 	private:
 		void regist_connection(connection_impl *conn)
@@ -841,7 +860,7 @@ namespace epoll
 		timer_manager timer_manager_;
 		std::vector<event_context*> del_event_ctx_;
 		epoll_event ev_;
-		epoll_event events_[max_io_events];
+		epoll_event events_[MAXIOEVENTS];
 		int epfd_ = -1;
 		bool is_stop_ = false;
 	};

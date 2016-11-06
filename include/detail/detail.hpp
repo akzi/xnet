@@ -47,11 +47,13 @@
 #include <fcntl.h>
 typedef int SOCKET;
 #define INVALID_SOCKET -1
-#ifndef max_io_events
-#define max_io_events 256
+#ifndef MAXIOEVENTS
+#define MAXIOEVENTS 256
+#endif
 #define  SD_SEND SHUT_WR 
 #define  SD_RECEIVE SHUT_RD 
-#endif
+#define WSAEWOULDBLOCK EWOULDBLOCK
+#define WSAEINPROGRESS EINPROGRESS
 #include "exceptions.hpp"
 #include "functional.hpp"
 #include "epoll.hpp"

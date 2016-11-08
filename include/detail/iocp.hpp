@@ -27,7 +27,7 @@ namespace iocp
 		} ;
 		int status_ = e_idle;
 
-		std::vector<uint8_t> buffer_;
+		std::string buffer_;
 
 
 		WSABUF WSABuf_;
@@ -179,7 +179,7 @@ namespace iocp
 			recv_overlapped_->status_ = overLapped_context::e_idle;
 			if (status)
 			{
-				recv_callback_(recv_overlapped_->buffer_.data(), 
+				recv_callback_((void*)recv_overlapped_->buffer_.data(), 
 							   recv_overlapped_->recv_bytes_);
 			}
 			else

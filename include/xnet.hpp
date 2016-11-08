@@ -67,7 +67,7 @@ namespace xnet
 
 			try
 			{
-				impl_->async_send({(char*)data, len});
+				impl_->async_send({(char*)data, (uint32_t)len});
 			}
 			catch (std::exception& e)
 			{

@@ -14,7 +14,7 @@ namespace select
 		}
 		void reload(std::string&& data)
 		{
-			to_send_ = data.size();
+			to_send_ = (uint32_t)data.size();
 			send_bytes_ = 0;
 			buffer_ = std::move(data);
 		}

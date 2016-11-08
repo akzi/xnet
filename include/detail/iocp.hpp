@@ -46,10 +46,10 @@ namespace iocp
 
 		class connector_impl *connector_ = NULL;
 
-		void reload(std::vector<uint8_t> &data)
+		void reload(std::string &&data)
 		{
 			send_pos_ = 0;
-			buffer_.swap(data);
+			buffer_ = std::move(data);
 			WSABuf_.buf = (CHAR*)buffer_.data();
 			WSABuf_.len = (ULONG)buffer_.size();
 		}
@@ -128,13 +128,13 @@ namespace iocp
 		{
 			send_callback_ = callback;
 		}
-		void async_send(std::vector<uint8_t> &data)
+		void async_send(std::string &&data)
 		{
 			xnet_assert(send_overlapped_->status_ ==
 				overLapped_context::e_idle);
 
 			DWORD bytes = 0;
-			send_overlapped_->reload(data);
+			send_overlapped_->reload(std::move(data));
 			
 			if(WSASend(socket_,
 				&send_overlapped_->WSABuf_,

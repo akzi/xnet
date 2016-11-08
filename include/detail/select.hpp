@@ -12,11 +12,11 @@ namespace select
 		~io_context()
 		{
 		}
-		void reload(std::vector<uint8_t>& data)
+		void reload(std::string&& data)
 		{
-			to_send_ = (uint32_t)data.size();
+			to_send_ = data.size();
 			send_bytes_ = 0;
-			buffer_.swap(data);
+			buffer_ = std::move(data);
 		}
 		void reload(uint32_t len)
 		{
@@ -40,7 +40,7 @@ namespace select
 		int last_status_ = e_idle;
 
 		SOCKET socket_ = INVALID_SOCKET;
-		std::vector<uint8_t> buffer_;
+		std::string buffer_;
 		uint32_t to_recv_;
 		uint32_t recv_bytes_;
 
@@ -75,10 +75,10 @@ namespace select
 		{
 			send_callback_handle_ = callback;
 		}
-		void async_send(std::vector<uint8_t> &data)
+		void async_send(std::string &&data)
 		{
 			xnet_assert(send_ctx_->status_ == io_context::e_idle);
-			send_ctx_->reload(data);
+			send_ctx_->reload(std::move(data));
 			send_ctx_->status_ = io_context::e_send;
 			if (send_ctx_->last_status_ == io_context::e_send)
 				return;

@@ -44,19 +44,30 @@ namespace xnet
 			recv_callback_ = callback;
 			return *this;
 		}
+		void async_send(std::string &&buffer)
+		{
+			xnet_assert(impl_);
+			xnet_assert(buffer.size());
+			try
+			{
+				impl_->async_send(std::move(buffer));
+			}
+			catch (std::exception& e)
+			{
+				std::cout << e.what() << std::endl;
+				send_callback_(-1);
+			}
+		}
+
 		void async_send(const void *data, int len)
 		{
 			xnet_assert(len);
 			xnet_assert(data);
 			xnet_assert(impl_);
 
-			std::vector<uint8_t> buffer_;
-			buffer_.resize(len);
-			memcpy(buffer_.data(), data, len);
-
 			try
 			{
-				impl_->async_send(buffer_);
+				impl_->async_send({(char*)data, len});
 			}
 			catch (std::exception& e)
 			{
@@ -206,17 +217,14 @@ namespace xnet
 		}
 		friend proactor;
 		accept_callback_t accept_callback_;
-		detail::acceptor_impl *impl_ = NULL;
+		detail::acceptor_impl *impl_ = nullptr;
 	};
 	class connector: no_copy_able
 	{
 	public:
 		typedef std::function<void(connection &&)> success_callback_t;
 		typedef std::function<void(std::string)> failed_callback_t;
-		connector()
-		{
 
-		}
 		connector(connector && _connector)
 		{
 			reset_move(std::move(_connector));
@@ -269,7 +277,11 @@ namespace xnet
 		}
 		void close()
 		{
-			impl_->close();
+			if (impl_)
+			{
+				impl_->close();
+				impl_ = nullptr;
+			}
 		}
 	private:
 		friend proactor;
@@ -294,7 +306,7 @@ namespace xnet
 					[this](std::string error_code) {
 					failed_callback_(error_code);
 				});
-				_connector.impl_ = NULL;
+				_connector.impl_ = nullptr;
 			}
 		}
 		connector()
@@ -302,7 +314,7 @@ namespace xnet
 		}
 		std::function<void(connection &&)> success_callback_;
 		 failed_callback_t failed_callback_;
-		detail::connector_impl *impl_ = NULL;
+		detail::connector_impl *impl_ = nullptr;
 		std::string ip_;
 		int port_;
 

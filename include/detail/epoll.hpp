@@ -32,11 +32,11 @@ namespace epoll
 		{ }
 		~io_context()
 		{ }
-		void reload(std::vector<uint8_t>& data)
+		void reload(std::string && data)
 		{
 			to_send_ = (uint32_t)data.size();
 			send_bytes_ = 0;
-			buffer_.swap(data);
+			buffer_ = std::move(data);
 		}
 		void reload(uint32_t len)
 		{
@@ -62,7 +62,7 @@ namespace epoll
 		void *event_ctx_ = NULL;
 		int socket_ = -1;
 
-		std::vector<uint8_t> buffer_;
+		std::string buffer_;
 		uint32_t to_recv_;
 		uint32_t recv_bytes_;
 
@@ -97,10 +97,10 @@ namespace epoll
 		{
 			send_callback_handle_ = callback;
 		}
-		void async_send(std::vector<uint8_t> &data)
+		void async_send(std::string  &&data)
 		{
 			xnet_assert(send_ctx_->status_ == io_context::e_idle);
-			send_ctx_->reload(data);
+			send_ctx_->reload(std::move(data));
 			send_ctx_->status_ = io_context::e_send;
 			if(send_ctx_->last_status_ == io_context::e_send)
 				return;

@@ -176,7 +176,7 @@ namespace epoll
 			recv_ctx_->buffer_.push_back('\0');
 			in_callback_ = true;
 			if(status)
-				recv_callback_handle_(
+				recv_callback_handle_((void*)
 				recv_ctx_->buffer_.data(),recv_ctx_->recv_bytes_);
 			else
 				recv_callback_handle_(NULL, -1);

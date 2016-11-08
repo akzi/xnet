@@ -5,7 +5,6 @@ CFLAGS = -g -W \
 -Wshadow \
 -Wno-long-long \
 -Wformat \
--DACL_PREPARE_COMPILE \
 -I ../../include \
 -std=c++11
 

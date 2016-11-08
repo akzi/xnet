@@ -213,7 +213,10 @@ namespace xnet
 	public:
 		typedef std::function<void(connection &&)> success_callback_t;
 		typedef std::function<void(std::string)> failed_callback_t;
+		connector()
+		{
 
+		}
 		connector(connector && _connector)
 		{
 			reset_move(std::move(_connector));

@@ -238,7 +238,7 @@ namespace xnet
 		{
 
 		}
-		void sync_connect(const std::string &ip, int port)
+		void async_connect(const std::string &ip, int port)
 		{
 			ip_ = ip;
 			port_ = port;

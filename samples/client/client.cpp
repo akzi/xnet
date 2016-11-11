@@ -50,9 +50,9 @@ int main()
 	{
 		conn_run(std::move(_conn), id);
 		id++;
-		connector.sync_connect("192.168.0.9", 9001);
+		connector.async_connect("192.168.0.9", 9001);
 	});
-	connector.sync_connect("192.168.0.9", 9001);
+	connector.async_connect("192.168.0.9", 9001);
 	proactor.run();
 
 	return  0;

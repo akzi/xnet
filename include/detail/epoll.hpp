@@ -866,5 +866,8 @@ namespace epoll
 		bool is_stop_ = false;
 	};
 }
-
+typedef epoll::connection_impl connection_impl;
+typedef epoll::acceptor_impl acceptor_impl;
+typedef epoll::proactor_impl proactor_impl;
+typedef epoll::connector_impl connector_impl;
 }

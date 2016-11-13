@@ -14,9 +14,8 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
-#define trace std::cout << __FILE__ << " "<< __LINE__<< std::endl;std::cout.flush();
-#include "common/guard.hpp"
-#include "common/no_copy_able.hpp"
+#include "../common/guard.hpp"
+#include "../common/no_copy_able.hpp"
 #include "timer.hpp"
 #define SELECT 1
 #if defined _WIN32 
@@ -26,12 +25,11 @@
 #define FD_SETSIZE      1024
 #define IOCP 1
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
-#include <ws2tcpip.h>//socklen_t 
 #include <winsock2.h>
+#include <ws2tcpip.h>//socklen_t 
 #include <mswsock.h>
 #include "exceptions.hpp"
 #include "functional.hpp"
-#include "iocp.hpp"
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Mswsock.lib")
 #else
@@ -56,33 +54,12 @@ typedef int SOCKET;
 #define WSAEINPROGRESS EINPROGRESS
 #include "exceptions.hpp"
 #include "functional.hpp"
-#include "epoll.hpp"
 #endif
-
-#include "select.hpp"
-
-namespace xnet
-{
-	namespace detail
-	{
 
 #if IOCP
-		typedef iocp::connection_impl connection_impl;
-		typedef iocp::acceptor_impl acceptor_impl;
-		typedef iocp::proactor_impl proactor_impl;
-		typedef iocp::connector_impl connector_impl;
-		typedef iocp::socket_exception socket_exception;
-#elif EPOLL
-		typedef epoll::connection_impl connection_impl;
-		typedef epoll::acceptor_impl acceptor_impl;
-		typedef epoll::proactor_impl proactor_impl;
-		typedef epoll::connector_impl connector_impl;
-#elif SELECT
-		typedef select::connection_impl connection_impl;
-		typedef select::acceptor_impl acceptor_impl;
-		typedef select::proactor_impl proactor_impl;
-		typedef select::connector_impl connector_impl;
+#include "iocp.hpp"
+#elif EPOLL 
+#include "epoll.hpp"
+#else
+#include "select.hpp"
 #endif
-
-	}
-}

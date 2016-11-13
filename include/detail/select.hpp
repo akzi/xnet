@@ -1,3 +1,4 @@
+#pragma once
 namespace xnet
 {
 namespace select
@@ -799,5 +800,9 @@ namespace select
 		timer_manager timer_manager_;
 		selecter selecter_;
 	};
+	typedef select::connection_impl connection_impl;
+	typedef select::acceptor_impl acceptor_impl;
+	typedef select::proactor_impl proactor_impl;
+	typedef select::connector_impl connector_impl;
 }
 }

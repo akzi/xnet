@@ -34,11 +34,11 @@ namespace epoll
 		{ }
 		void reload(std::string && data)
 		{
-			to_send_ = (uint32_t)data.size();
+			to_send_ = (std::size_t)data.size();
 			send_bytes_ = 0;
 			buffer_ = std::move(data);
 		}
-		void reload(uint32_t len)
+		void reload(std::size_t len)
 		{
 			to_recv_ = len;
 			recv_bytes_ = 0;
@@ -63,11 +63,11 @@ namespace epoll
 		int socket_ = -1;
 
 		std::string buffer_;
-		uint32_t to_recv_;
-		uint32_t recv_bytes_;
+		std::size_t to_recv_;
+		std::size_t recv_bytes_;
 
-		uint32_t to_send_;
-		uint32_t send_bytes_;
+		std::size_t to_send_;
+		std::size_t send_bytes_;
 
 		const int recv_some_ = 1024;
 
@@ -107,7 +107,7 @@ namespace epoll
 			xnet_assert(regist_send_ctx_);
 			regist_send_ctx_(send_ctx_);
 		}
-		void async_recv(uint32_t len)
+		void async_recv(std::size_t len)
 		{
 			xnet_assert(recv_ctx_->status_ == io_context::e_idle);
 			recv_ctx_->reload(len);
@@ -176,8 +176,9 @@ namespace epoll
 			recv_ctx_->buffer_.push_back('\0');
 			in_callback_ = true;
 			if(status)
-				recv_callback_handle_((void*)
-				recv_ctx_->buffer_.data(),recv_ctx_->recv_bytes_);
+				recv_callback_handle_(
+					(char*)recv_ctx_->buffer_.data(),
+						recv_ctx_->recv_bytes_);
 			else
 				recv_callback_handle_(NULL, -1);
 			
@@ -203,7 +204,7 @@ namespace epoll
 		std::function<void(connection_impl*)> regist_connection_;
 		std::function<void(connection_impl*)> unregist_connection_;
 
-		std::function<void(void *, int)> recv_callback_handle_;
+		std::function<void(char*, int)> recv_callback_handle_;
 		std::function<void(int)> send_callback_handle_;
 	};
 
@@ -610,7 +611,7 @@ namespace epoll
 
 			return acceptor;
 		}
-		timer_manager::timer_id set_timer(uint32_t timeout,
+		timer_manager::timer_id set_timer(std::size_t timeout,
 			std::function<bool()> timer_callback)
 		{
 			return timer_manager_.set_timer(timeout, timer_callback);

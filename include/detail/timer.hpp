@@ -7,8 +7,8 @@ namespace xnet
 
 	struct xtimer
 	{
-		uint32_t timer_id_;
-		uint32_t timeout_;
+		std::size_t timer_id_;
+		std::size_t timeout_;
 		std::function<bool()> timer_callback_;
 	};
 
@@ -34,7 +34,7 @@ namespace xnet
 		std::chrono::high_resolution_clock::time_point, xtimer>
 	{
 	public:
-		typedef uint32_t timer_id;
+		typedef std::size_t timer_id;
 		timer_manager()
 		{
 
@@ -66,7 +66,7 @@ namespace xnet
 			}
 			return (caster(itr->first.time_since_epoch()) - caster(now.time_since_epoch())).count();
 		}
-		timer_id set_timer(uint32_t timeout, std::function<bool()> timer_callback)
+		timer_id set_timer(std::size_t timeout, std::function<bool()> timer_callback)
 		{
 			auto timer_point = std::chrono::high_resolution_clock::now()
 				+ std::chrono::high_resolution_clock::
@@ -78,7 +78,7 @@ namespace xnet
 			insert(std::make_pair(timer_point, timer));
 			return next_id_;
 		}
-		void cancel_timer(uint32_t id)
+		void cancel_timer(std::size_t id)
 		{
 			for (auto itr = begin();itr !=end(); ++itr)
 			{
@@ -90,6 +90,6 @@ namespace xnet
 			}
 		}
 	private:
-		uint32_t next_id_ = 0;
+		std::size_t next_id_ = 0;
 	};
 }

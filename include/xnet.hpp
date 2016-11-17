@@ -7,8 +7,8 @@ namespace xnet
 	class connection:public no_copy_able
 	{
 	public:
-		typedef std::function<void(void *, int)> recv_callback_t;
-		typedef std::function<void(int)> send_callback_t;
+		typedef std::function<void(char*, std::size_t)> recv_callback_t;
+		typedef std::function<void(std::size_t)> send_callback_t;
 
 		connection()
 		{
@@ -76,7 +76,7 @@ namespace xnet
 			}
 		}
 
-		void async_recv(uint32_t len)
+		void async_recv(std::size_t len)
 		{
 			try
 			{
@@ -87,7 +87,7 @@ namespace xnet
 			catch (detail::socket_exception &e)
 			{
 				std::cout << e.str() << std::endl;
-				recv_callback_(NULL, -1);
+				recv_callback_(NULL, 0);
 			}
 		}
 		void async_recv_some()
@@ -100,7 +100,7 @@ namespace xnet
 			catch (detail::socket_exception &e)
 			{
 				std::cout << e.str() << std::endl;
-				recv_callback_(NULL, -1);
+				recv_callback_(NULL, 0);
 			}
 		}
 		void close()
@@ -130,12 +130,12 @@ namespace xnet
 		void init()
 		{
 			impl_->bind_recv_callback(
-				[this](void *data, int len) {
+				[this](char *data, std::size_t len) {
 				xnet_assert(recv_callback_);
 				recv_callback_(data, len);
 			});
 			impl_->bind_send_callback(
-				[this](int len) {
+				[this](std::size_t len) {
 				xnet_assert(send_callback_);
 				send_callback_(len);
 			});

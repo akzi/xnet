@@ -36,7 +36,7 @@ namespace xnet
 				fd_set *readfds,
 				fd_set *writefds,
 				fd_set *exceptfds,
-				uint32_t timeout)
+				std::size_t timeout)
 			{
 				struct timeval tv = {
 					(long)(timeout / 1000),
@@ -104,7 +104,7 @@ namespace xnet
 				fd_set *readfds,
 				fd_set *writefds,
 				fd_set *exceptfds,
-				uint32_t timeout)
+				std::size_t timeout)
 			{
 				struct timeval tv = {
 					(long)(timeout / 1000),

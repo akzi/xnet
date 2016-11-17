@@ -31,11 +31,11 @@ namespace iocp
 
 
 		WSABUF WSABuf_;
-		uint32_t to_recv_len_;
-		uint32_t recv_pos_;
-		uint32_t recv_bytes_;
+		std::size_t to_recv_len_;
+		std::size_t recv_pos_;
+		std::size_t recv_bytes_;
 
-		uint32_t send_pos_;
+		std::size_t send_pos_;
 
 		SOCKET socket_;
 		const int recv_some_ = 10240;
@@ -53,7 +53,7 @@ namespace iocp
 			WSABuf_.buf = (CHAR*)buffer_.data();
 			WSABuf_.len = (ULONG)buffer_.size();
 		}
-		void reload(uint32_t len)
+		void reload(std::size_t len)
 		{
 			to_recv_len_ = len;
 			recv_pos_ = 0;
@@ -149,7 +149,7 @@ namespace iocp
 			}
 			send_overlapped_->status_ = overLapped_context::e_send;
 		}
-		void async_recv(uint32_t len)
+		void async_recv(std::size_t len)
 		{
 			xnet_assert(recv_overlapped_->status_ ==
 						overLapped_context::e_idle);
@@ -179,12 +179,12 @@ namespace iocp
 			recv_overlapped_->status_ = overLapped_context::e_idle;
 			if(status)
 			{
-				recv_callback_((void*)recv_overlapped_->buffer_.data(),
+				recv_callback_((char*)recv_overlapped_->buffer_.data(),
 								recv_overlapped_->recv_bytes_);
 			}
 			else
 			{
-				recv_callback_(NULL, -1);
+				recv_callback_(NULL, 0);
 			}
 		}
 
@@ -200,8 +200,8 @@ namespace iocp
 				send_callback_(0);
 			}
 		}
-		std::function<void(void *, int)> recv_callback_;
-		std::function<void(int)> send_callback_;
+		std::function<void(char*, std::size_t)> recv_callback_;
+		std::function<void(std::size_t)> send_callback_;
 
 		overLapped_context *send_overlapped_ = NULL;
 		overLapped_context *recv_overlapped_ = NULL;
@@ -595,7 +595,7 @@ namespace iocp
 			acceptor->IOCompletionPort_ = IOCompletionPort_;
 			return acceptor;
 		}
-		timer_id set_timer(uint32_t timeout, std::function<bool()> timer_callback)
+		timer_id set_timer(std::size_t timeout, std::function<bool()> timer_callback)
 		{
 			return timer_manager_.set_timer(timeout, timer_callback);
 		}
@@ -614,9 +614,9 @@ namespace iocp
 				(char *)overlapped->buffer_.data() +
 				overlapped->send_pos_;
 
-			overlapped->WSABuf_.len =
-				(ULONG)overlapped->buffer_.size() -
-				overlapped->send_pos_;
+			overlapped->WSABuf_.len = 
+				static_cast<ULONG>(
+					overlapped->buffer_.size() -overlapped->send_pos_);
 
 			if(WSASend(overlapped->socket_,
 				&overlapped->WSABuf_,
@@ -641,9 +641,8 @@ namespace iocp
 				(char*)overlapped->buffer_.data() +
 				overlapped->recv_pos_;
 
-			overlapped->WSABuf_.len =
-				overlapped->to_recv_len_ -
-				overlapped->recv_pos_;
+			overlapped->WSABuf_.len = static_cast<ULONG>(
+				overlapped->to_recv_len_ -overlapped->recv_pos_);
 
 			if(WSARecv(
 				overlapped->socket_,

@@ -28,22 +28,16 @@ namespace iocp
 		int status_ = e_idle;
 
 		std::string buffer_;
-
-
+		SOCKET socket_;
 		WSABUF WSABuf_;
 		std::size_t to_recv_len_;
 		std::size_t recv_pos_;
 		std::size_t recv_bytes_;
-
 		std::size_t send_pos_;
 
-		SOCKET socket_;
 		const int recv_some_ = 10240;
-
 		class acceptor_impl *acceptor_ = NULL;
-
 		class connection_impl *connection_ = NULL;
-
 		class connector_impl *connector_ = NULL;
 
 		void reload(std::string &&data)
@@ -750,5 +744,4 @@ typedef iocp::proactor_impl proactor_impl;
 typedef iocp::connector_impl connector_impl;
 typedef iocp::socket_exception socket_exception;
 }
-
 }

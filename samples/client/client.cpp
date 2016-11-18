@@ -18,9 +18,9 @@ int main()
 	auto conn_run = [&conns,&req](xnet::connection &&conn, int conn_id)
 	{
 		conns.emplace(conn_id, std::move(conn));
-		conns[conn_id].regist_recv_callback([&conns,conn_id](void *data, int len)
+		conns[conn_id].regist_recv_callback([&conns,conn_id](char *data, std::size_t len)
 		{
- 			if (len < 0)
+ 			if (len == 0)
  			{
  				conns[conn_id].close();
  				conns.erase(conns.find(conn_id));
@@ -32,9 +32,9 @@ int main()
 			
 		});
 
-		conns[conn_id].regist_send_callback([&](int len)
+		conns[conn_id].regist_send_callback([&](std::size_t len)
 		{
- 			if (len < 0)
+ 			if (len == 0)
  			{
  				conns[conn_id].close();
  				conns.erase(conns.find(conn_id));

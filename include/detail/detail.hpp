@@ -18,7 +18,7 @@
 #include "../common/no_copy_able.hpp"
 #include "timer.hpp"
 #define SELECT 1
-#if defined _WIN32 
+#if defined _MSC_VER
 #ifdef FD_SETSIZE
 #undef FD_SETSIZE
 #endif

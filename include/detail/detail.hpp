@@ -19,14 +19,14 @@
 #include "timer.hpp"
 #define SELECT 1
 #if defined _MSC_VER
-#ifdef FD_SETSIZE
 #undef FD_SETSIZE
-#endif
 #define FD_SETSIZE      1024
-#define IOCP 1
+#ifndef IOCP
+#define IOCP 0
+#endif
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <winsock2.h>
-#include <ws2tcpip.h>//socklen_t 
+#include <ws2tcpip.h>
 #include <mswsock.h>
 #include "exceptions.hpp"
 #include "functional.hpp"

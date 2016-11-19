@@ -52,14 +52,17 @@ namespace select
 
 		const int recv_some_ = 1024;
 
-		class connection_impl *connection_ = NULL;
-		class acceptor_impl *acceptor_ = NULL;
-		class connector_impl *connector_ = NULL;
+		class connection_impl *connection_ = nullptr;
+		class acceptor_impl *acceptor_ = nullptr;
+		class connector_impl *connector_ = nullptr;
 	};
 
 	class connection_impl
 	{
 	public:
+		using recv_callback_t = std::function<void(char*, std::size_t)>;
+		using send_callback_t = std::function<void(std::size_t)>;
+
 		connection_impl(SOCKET _socket)
 			:socket_(_socket)
 		{
@@ -68,15 +71,17 @@ namespace select
 		{
 
 		}
-		template<typename T>
-		void bind_recv_callback(T callback)
+		void bind_recv_callback(recv_callback_t callback)
 		{
-			recv_callback_handle_ = callback;
+			recv_callback_ = callback;
 		}
-		template<typename T>
-		void bind_send_callback(T callback)
+		void bind_send_callback(send_callback_t callback)
 		{
-			send_callback_handle_ = callback;
+			send_callback_ = callback;
+		}
+		int send(const char *data, int len)
+		{
+			return ::send(socket_, data, len, 0);
 		}
 		void async_send(std::string &&data)
 		{
@@ -135,9 +140,9 @@ namespace select
 			send_ctx_->status_ = io_context::e_idle;
 			++in_callback_;
 			if (status)
-				send_callback_handle_(send_ctx_->send_bytes_);
+				send_callback_(send_ctx_->send_bytes_);
 			else
-				send_callback_handle_(-1);
+				send_callback_(0);
 			--in_callback_;
 			if (!close_flag_ && send_ctx_->status_ != io_context::e_send)
 			{
@@ -154,10 +159,10 @@ namespace select
 			recv_ctx_->buffer_.push_back('\0');
 			++in_callback_;
 			if (status)
-				recv_callback_handle_((char*)recv_ctx_->buffer_.data(),
+				recv_callback_((char*)recv_ctx_->buffer_.data(),
 					recv_ctx_->recv_bytes_);
 			else
-				recv_callback_handle_(NULL, -1);
+				recv_callback_(nullptr, 0);
 			--in_callback_;
 			if (!close_flag_ && recv_ctx_->status_ != io_context::e_recv)
 			{
@@ -170,8 +175,8 @@ namespace select
 		SOCKET socket_ = INVALID_SOCKET;
 		bool close_flag_ = false;
 		int in_callback_ = false;
-		io_context *send_ctx_ = NULL;
-		io_context *recv_ctx_ = NULL;
+		io_context *send_ctx_ = nullptr;
+		io_context *recv_ctx_ = nullptr;
 
 		std::function<void(io_context*)> regist_send_ctx_;
 		std::function<void(io_context*)> unregist_send_ctx_;
@@ -179,19 +184,18 @@ namespace select
 		std::function<void(io_context*)> unregist_recv_ctx_;
 		std::function<void(io_context*)> del_io_context_;
 
-		std::function<void(char*, std::size_t)> recv_callback_handle_;
-		std::function<void(std::size_t)> send_callback_handle_;
+		recv_callback_t recv_callback_;
+		send_callback_t send_callback_;
 	};
 	class acceptor_impl
 	{
 	public:
+		using accept_callback_t = std::function<void(connection_impl*)>;
 		acceptor_impl()
 		{
 
 		}
-
-		void regist_accept_callback(
-			std::function<void(connection_impl *)> callback)
+		void regist_accept_callback(accept_callback_t callback)
 		{
 			acceptor_callback_ = callback;
 		}
@@ -204,11 +208,18 @@ namespace select
 			xnet_assert(nonblocker(socket_) != INVALID_SOCKET);
 
 			int nodelay = 1;
-			int rc = setsockopt(socket_, IPPROTO_TCP, TCP_NODELAY, (char*)&nodelay, sizeof(int));
-			xnet_assert(rc != -1);
+			xnet_assert(setsockopt(socket_,
+				IPPROTO_TCP,
+				TCP_NODELAY,
+				(char*)&nodelay,
+				sizeof(int)) != -1);
+
 			int flags = 1;
-			rc = setsockopt(socket_, SOL_SOCKET, SO_REUSEADDR, (char*)&flags, sizeof(int));
-			xnet_assert(rc == 0);
+			xnet_assert(setsockopt(socket_, 
+				SOL_SOCKET, 
+				SO_REUSEADDR, 
+				(char*)&flags, 
+				sizeof(int)) == 0);
 
 			struct sockaddr_in addr;
 			addr.sin_family = AF_INET;
@@ -217,7 +228,6 @@ namespace select
 
 			xnet_assert(!::bind(socket_, (struct sockaddr*)&addr, sizeof(addr)));
 			xnet_assert(!listen(socket_, SOMAXCONN));
-
 
 			accept_ctx_ = new io_context;
 			accept_ctx_->acceptor_ = this;
@@ -247,7 +257,7 @@ namespace select
 			xnet_assert(result);
 			do
 			{
-				SOCKET sock = ::accept(socket_, NULL, NULL);
+				SOCKET sock = ::accept(socket_, nullptr, nullptr);
 				if (sock == INVALID_SOCKET)
 					return;
 				auto conn = new connection_impl(sock);
@@ -264,47 +274,44 @@ namespace select
 		}
 
 		SOCKET socket_ = INVALID_SOCKET;
-		io_context* accept_ctx_ = NULL;
+		io_context* accept_ctx_ = nullptr;
 		std::function<void(io_context*)> regist_accept_ctx_;
 		std::function<void(io_context*)> regist_send_ctx_;
 		std::function<void(io_context*)> unregist_send_ctx_;
 		std::function<void(io_context*)> regist_recv_ctx_;
 		std::function<void(io_context*)> unregist_recv_ctx_;
 		std::function<void(io_context*)> del_io_context_;
-		std::function<void(connection_impl*)> acceptor_callback_;
+		accept_callback_t acceptor_callback_;
 	};
 	class connector_impl
 	{
 	public:
-		connector_impl()
-		{
+		using success_callback_t = std::function<void(connection_impl *)>;
+		using failed_callback_t = std::function<void(std::string)>;
 
-		}
+		connector_impl() {}
+
 		~connector_impl()
 		{ }
-		template<typename SUCCESS_CALLBACK>
-		void bind_success_callback(SUCCESS_CALLBACK callback)
+		void bind_success_callback(success_callback_t callback)
 		{
 			success_callback_ = callback;
 		}
-		template<typename FAILED_CALLBACK>
-		void bind_failed_callback(FAILED_CALLBACK callback)
+		void bind_failed_callback(failed_callback_t callback)
 		{
 			failed_callback_ = callback;
 		}
 		void sync_connect(const std::string &ip, int port)
 		{
-			setnonblocker nonblocker;
 			socket_ = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 			xnet_assert(socket_ != INVALID_SOCKET);
-			nonblocker(socket_);
+			xnet_assert(!setnonblocker()(socket_));
+			reset_connect_context();
 			connect_ctx_ = new io_context;
 			xnet_assert(connect_ctx_);
 			connect_ctx_->connector_ = this;
 			connect_ctx_->socket_ = socket_;
 			connect_ctx_->status_ = io_context::e_connect;
-
-
 
 			sockaddr_in addr;
 			memset(&addr, 0, sizeof(addr));
@@ -324,6 +331,7 @@ namespace select
 		void close()
 		{
 			reset_connect_context();
+			delete this;
 		}
 	private:
 		friend class proactor_impl;
@@ -333,9 +341,9 @@ namespace select
 			if (connect_ctx_)
 			{
 				connect_ctx_->status_ = io_context::e_close;
-				connect_ctx_->connector_ = NULL;
+				connect_ctx_->connector_ = nullptr;
 				del_io_context_(connect_ctx_);
-				connect_ctx_ = NULL;
+				connect_ctx_ = nullptr;
 			}
 		}
 		void on_connect(bool result)
@@ -354,8 +362,10 @@ namespace select
 				SOL_SOCKET, SO_ERROR, (char*)&err, &len));
 			if (err == 0)
 			{
+				unregist_send_ctx_(connect_ctx_);
+				xnet_assert(!setblocker()(socket_));
 				auto conn = new connection_impl(socket_);
-
+				connect_ctx_->connector_ = nullptr;
 				conn->send_ctx_ = connect_ctx_;
 				conn->recv_ctx_ = new io_context;
 				conn->send_ctx_->connection_ = conn;
@@ -372,7 +382,7 @@ namespace select
 				conn->del_io_context_ = del_io_context_;
 
 				socket_ = INVALID_SOCKET;
-				connect_ctx_ = NULL;
+				connect_ctx_ = nullptr;
 				success_callback_(conn);
 			}
 			else
@@ -381,7 +391,7 @@ namespace select
 			}
 		}
 		SOCKET socket_ = INVALID_SOCKET;
-		io_context *connect_ctx_ = NULL;
+		io_context *connect_ctx_ = nullptr;
 
 		std::function<void(io_context*)> regist_send_ctx_;
 		std::function<void(io_context*)> unregist_send_ctx_;
@@ -391,20 +401,19 @@ namespace select
 
 		std::function<void(io_context*)> regist_accept_ctx_;
 
-		std::function<void(connection_impl *)> success_callback_;
-		std::function<void(std::string)> failed_callback_;
+		success_callback_t success_callback_;
+		failed_callback_t failed_callback_;
 	};
 
 	class proactor_impl
 	{
 	private:
-
 		struct fd_context
 		{
 			SOCKET socket_ = INVALID_SOCKET;
 			bool del_flag_ = false;
-			io_context *recv_ctx_ = NULL;
-			io_context *send_ctx_ = NULL;
+			io_context *recv_ctx_ = nullptr;
+			io_context *send_ctx_ = nullptr;
 		};
 		typedef std::vector <fd_context> fd_context_vec;
 
@@ -424,9 +433,9 @@ namespace select
 		{
 			while (!is_stop_)
 			{
-				memcpy(&recv_fds_, &source_recv_fds_, sizeof source_recv_fds_);
-				memcpy(&send_fds_, &source_send_fds_, sizeof source_send_fds_);
-				memcpy(&except_fds_, &source_except_fds_, sizeof source_except_fds_);
+				memcpy(&recv_fds_, &source_recv_fds_, sizeof(source_recv_fds_));
+				memcpy(&send_fds_, &source_send_fds_, sizeof(source_send_fds_));
+				memcpy(&except_fds_, &source_except_fds_, sizeof(source_except_fds_));
 
 				int64_t timeout = timer_manager_.do_timer();
 				timeout = timeout > 0 ? timeout : 1000;
@@ -545,6 +554,28 @@ namespace select
 		void cancel_timer(timer_manager::timer_id id)
 		{
 			timer_manager_.cancel_timer(id);
+		}
+		void regist_connection(connection_impl &conn)
+		{
+			conn.regist_recv_ctx_ = std::bind(
+				&proactor_impl::regist_recv_context,
+				this, std::placeholders::_1);
+
+			conn.unregist_recv_ctx_ = std::bind(
+				&proactor_impl::unregist_recv_context,
+				this, std::placeholders::_1);
+
+			conn.regist_send_ctx_ = std::bind(
+				&proactor_impl::regist_send_context,
+				this, std::placeholders::_1);
+
+			conn.unregist_send_ctx_ = std::bind(
+				&proactor_impl::unregist_send_context,
+				this, std::placeholders::_1);
+
+			conn.del_io_context_ = std::bind(
+				&proactor_impl::del_io_context,
+				this, std::placeholders::_1);
 		}
 	private:
 		void regist_recv_context(io_context *io_ctx_)
@@ -788,8 +819,8 @@ namespace select
 				delete fd_ctx.recv_ctx_;
 			if (fd_ctx.send_ctx_)
 				delete fd_ctx.send_ctx_;
-			fd_ctx.send_ctx_ = NULL;
-			fd_ctx.recv_ctx_ = NULL;
+			fd_ctx.send_ctx_ = nullptr;
+			fd_ctx.recv_ctx_ = nullptr;
 			fd_ctx.socket_ = INVALID_SOCKET;
 			retired = true;
 			return;

@@ -63,6 +63,8 @@ namespace iocp
 	class connection_impl
 	{
 	public:
+		using recv_callback_t = std::function<void(char*, std::size_t)>;
+		using send_callback_t = std::function<void(std::size_t)>;
 		connection_impl(SOCKET sock)
 		{
 			socket_ = sock;
@@ -86,22 +88,27 @@ namespace iocp
 		{
 			if(send_overlapped_)
 			{
-				if(send_overlapped_->status_ == overLapped_context::e_idle)
+				if(send_overlapped_->status_ == 
+					overLapped_context::e_idle)
 				{
 					shutdown(socket_, SD_BOTH);
 					closesocket(socket_);
 					delete send_overlapped_;
 				}
-				else if(send_overlapped_->status_ == overLapped_context::e_send)
+				else if(send_overlapped_->status_ == 
+					overLapped_context::e_send)
 				{
-					send_overlapped_->status_ |= overLapped_context::e_close;
+					send_overlapped_->status_ |= 
+						overLapped_context::e_close;
+
 					send_overlapped_->connection_ = NULL;
 				}
 				send_overlapped_ = NULL;
 			}
 			if(recv_overlapped_)
 			{
-				if(recv_overlapped_->status_ == overLapped_context::e_idle)
+				if(recv_overlapped_->status_ ==
+					overLapped_context::e_idle)
 				{
 					delete recv_overlapped_;
 				}
@@ -116,13 +123,11 @@ namespace iocp
 			}
 			delete this;
 		}
-		template<typename READCALLBACK>
-		void bind_recv_callback(READCALLBACK callback)
+		void bind_recv_callback(recv_callback_t callback)
 		{
 			recv_callback_ = callback;
 		}
-		template<typename SENDCALLBACK>
-		void bind_send_callback(SENDCALLBACK callback)
+		void bind_send_callback(send_callback_t callback)
 		{
 			send_callback_ = callback;
 		}
@@ -205,17 +210,13 @@ namespace iocp
 		{
 			send_overlapped_->status_ = overLapped_context::e_idle;
 			if(status)
-			{
 				send_callback_((int)send_overlapped_->buffer_.size());
-			}
 			else
-			{
 				send_callback_(0);
-			}
 		}
 		bool bind_iocp_ = false;
-		std::function<void(char*, std::size_t)> recv_callback_;
-		std::function<void(std::size_t)> send_callback_;
+		recv_callback_t recv_callback_;
+		send_callback_t send_callback_;
 		HANDLE iocp_ = NULL;
 		overLapped_context *send_overlapped_ = NULL;
 		overLapped_context *recv_overlapped_ = NULL;
@@ -224,6 +225,7 @@ namespace iocp
 	class acceptor_impl
 	{
 	public:
+		using accept_callback_t = std::function<void(connection_impl*)>;
 		acceptor_impl()
 		{
 			overLapped_context_ = new overLapped_context;
@@ -243,10 +245,9 @@ namespace iocp
 			if(accept_socket_ != INVALID_SOCKET)
 				closesocket(accept_socket_);
 		}
-		template<class accept_callback_t>
 		void regist_accept_callback(accept_callback_t callback)
 		{
-			acceptor_callback_ = callback;
+			accept_callback_ = callback;
 		}
 		void get_addr(std::string &ip, int &port)
 		{
@@ -333,10 +334,10 @@ namespace iocp
 			}
 			connection_impl *conn = new connection_impl(accept_socket_);
 			conn->set_iocp(IOCP_);
-			xnet_assert(acceptor_callback_);
+			xnet_assert(accept_callback_);
 			accept_socket_ = INVALID_SOCKET;
 			do_accept();
-			acceptor_callback_(conn);
+			accept_callback_(conn);
 		}
 
 		void do_accept()
@@ -349,11 +350,7 @@ namespace iocp
 										NULL,
 										0,
 										WSA_FLAG_OVERLAPPED);
-
-			if(accept_socket_ == INVALID_SOCKET)
-			{
-				throw socket_exception(WSAGetLastError());
-			}
+			xnet_assert(accept_socket_ != INVALID_SOCKET);
 			DWORD address_size = sizeof(sockaddr_in) + 16;
 
 			if(acceptex_func_(socket_,
@@ -365,16 +362,10 @@ namespace iocp
 				&bytesReceived_,
 				(OVERLAPPED*)overLapped_context_) == FALSE)
 			{
-				DWORD error_code = WSAGetLastError();
-				if(error_code != ERROR_IO_PENDING)
-				{
-					throw socket_exception(error_code);
-				}
+				xnet_assert(WSAGetLastError() == ERROR_IO_PENDING);
+				return;
 			}
-			else
-			{
-				accept_callback(true);
-			}
+			accept_callback(true);
 		}
 		char addr_buffer_[128];
 		DWORD bytesReceived_ = 0;
@@ -383,12 +374,14 @@ namespace iocp
 		SOCKET accept_socket_ = INVALID_SOCKET;
 		HANDLE IOCP_ = NULL;
 		overLapped_context *overLapped_context_ = NULL;
-		std::function<void(connection_impl*)> acceptor_callback_;
+		accept_callback_t accept_callback_;
 	};
 
 	class connector_impl
 	{
 	public:
+		using failed_callback_t = std::function<void(std::string)> ;
+		using success_callback_t = std::function<void(connection_impl*)>;
 		connector_impl()
 		{
 			overLapped_context_ = new overLapped_context;
@@ -398,13 +391,11 @@ namespace iocp
 			if(socket_ != INVALID_SOCKET)
 				closesocket(socket_);
 		}
-		template<typename SUCCESS_CALLBACK>
-		void bind_success_callback(SUCCESS_CALLBACK callback)
+		void bind_success_callback(success_callback_t callback)
 		{
 			success_callback_ = callback;
 		}
-		template<typename FAILED_CALLBACK>
-		void bind_failed_callback(FAILED_CALLBACK callback)
+		void bind_failed_callback(failed_callback_t callback)
 		{
 			failed_callback_ = callback;
 		}
@@ -413,12 +404,8 @@ namespace iocp
 			if(socket_ != INVALID_SOCKET)
 				closesocket(socket_);
 
-			socket_ = WSASocket(AF_INET,
-								SOCK_STREAM,
-								IPPROTO_TCP,
-								NULL,
-								0,
-								WSA_FLAG_OVERLAPPED);
+			socket_ = WSASocket(AF_INET,SOCK_STREAM,IPPROTO_TCP
+				,NULL,0,WSA_FLAG_OVERLAPPED);
 			xnet_assert(socket_ != INVALID_SOCKET);
 
 			xnet_assert(CreateIoCompletionPort(
@@ -502,8 +489,8 @@ namespace iocp
 		overLapped_context *overLapped_context_;
 		LPFN_CONNECTEX connectex_func_ = NULL;
 		SOCKET socket_ = INVALID_SOCKET;
-		std::function<void(connection_impl *)> success_callback_;
-		std::function<void(std::string)> failed_callback_;
+		success_callback_t success_callback_;
+		failed_callback_t failed_callback_;
 		HANDLE iocp_ = NULL;
 	};
 
@@ -529,10 +516,7 @@ namespace iocp
 			});
 			iocp_ = CreateIoCompletionPort(
 				INVALID_HANDLE_VALUE, NULL, 0, 1);
-			if(iocp_ == NULL)
-			{
-				throw socket_exception(GetLastError());
-			}
+			xnet_assert(iocp_);
 		}
 		void run()
 		{
@@ -572,9 +556,8 @@ namespace iocp
 			is_stop_ = true;
 			overLapped_context *overlapped = new overLapped_context;
 			overlapped->status_ = overLapped_context::e_stop;
-			PostQueuedCompletionStatus(iocp_,
-										0,
-										(ULONG_PTR)this, (LPOVERLAPPED)overlapped);
+			PostQueuedCompletionStatus(iocp_,0,(ULONG_PTR)this, 
+				(LPOVERLAPPED)overlapped);
 		}
 		acceptor_impl *get_acceptor() const
 		{

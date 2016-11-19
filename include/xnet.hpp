@@ -2,9 +2,9 @@
 #include "detail/detail.hpp"
 namespace xnet
 {
-	
+
 	class proactor;
-	class connection:public no_copy_able
+	class connection :public no_copy_able
 	{
 	public:
 		typedef std::function<void(char*, std::size_t)> recv_callback_t;
@@ -71,7 +71,7 @@ namespace xnet
 
 			try
 			{
-				impl_->async_send({data, (uint32_t)len});
+				impl_->async_send({ data, (uint32_t)len });
 			}
 			catch (std::exception& e)
 			{
@@ -86,7 +86,7 @@ namespace xnet
 			{
 				xnet_assert(len);
 				xnet_assert(impl_);
-				 impl_->async_recv(len);
+				impl_->async_recv(len);
 			}
 			catch (detail::socket_exception &e)
 			{
@@ -145,11 +145,11 @@ namespace xnet
 				send_callback_(len);
 			});
 		}
-
+		proactor *pro_;
 		detail::connection_impl *impl_ = NULL;
 		send_callback_t send_callback_;
 		recv_callback_t  recv_callback_;
-		
+
 	};
 
 	class acceptor : public no_copy_able
@@ -172,7 +172,7 @@ namespace xnet
 		void regist_accept_callback(accept_callback_t callback)
 		{
 			accept_callback_ = callback;
-			
+
 		}
 		bool bind(const std::string &ip, int port)
 		{
@@ -182,7 +182,7 @@ namespace xnet
 			}
 			catch (detail::socket_exception &e)
 			{
-				std::cout << e.str()<< std::endl;
+				std::cout << e.str() << std::endl;
 				return false;
 			}
 			return true;
@@ -209,20 +209,22 @@ namespace xnet
 				impl_ = NULL;
 			}
 		}
+		proactor &get_proactor()
+		{
+			return *proactor_;
+		}
 	private:
 		acceptor()
 		{
-			
+
 		}
 		void reset_move(acceptor &&acceptor_)
 		{
-			if (this != &acceptor_)
-			{
-				init(acceptor_.impl_);
-				acceptor_.impl_ = NULL;
-				accept_callback_= std::move(acceptor_.accept_callback_);
-
-			}
+			if (this == &acceptor_)
+				return;
+			init(acceptor_.impl_);
+			acceptor_.impl_ = NULL;
+			accept_callback_ = std::move(acceptor_.accept_callback_);
 		}
 		void init(detail::acceptor_impl *impl)
 		{
@@ -231,14 +233,15 @@ namespace xnet
 				[this](detail::connection_impl *conn)
 			{
 				xnet_assert(conn);
-				accept_callback_(connection(conn));
+				accept_callback_(std::move(connection(conn)));
 			});
 		}
 		friend proactor;
+		proactor *proactor_;
 		accept_callback_t accept_callback_;
 		detail::acceptor_impl *impl_ = nullptr;
 	};
-	class connector: no_copy_able
+	class connector : no_copy_able
 	{
 	public:
 		typedef std::function<void(connection &&)> success_callback_t;
@@ -255,7 +258,7 @@ namespace xnet
 		}
 		~connector()
 		{
-
+			close();
 		}
 		void async_connect(const std::string &ip, int port)
 		{
@@ -278,7 +281,7 @@ namespace xnet
 			success_callback_ = callback;
 			impl_->bind_success_callback(
 				[this](detail::connection_impl *conn)
-			{ 
+			{
 				success_callback_(connection(conn));
 			});
 			return *this;
@@ -311,34 +314,34 @@ namespace xnet
 		}
 		void reset_move(connector &&_connector)
 		{
-			if (this != &_connector)
-			{
-				xnet_assert(_connector.impl_);
-				impl_ = _connector.impl_;
-				success_callback_ = std::move(_connector.success_callback_);
-				failed_callback_ = std::move(_connector.failed_callback_);
-				impl_->bind_success_callback(
-					[this](detail::connection_impl *conn) {
-					success_callback_(connection(conn));
-				});
-				impl_->bind_failed_callback(
-					[this](std::string error_code) {
-					failed_callback_(error_code);
-				});
-				_connector.impl_ = nullptr;
-			}
+			if (this == &_connector)
+				return;
+			xnet_assert(_connector.impl_);
+			impl_ = _connector.impl_;
+			success_callback_ = std::move(_connector.success_callback_);
+			failed_callback_ = std::move(_connector.failed_callback_);
+			impl_->bind_success_callback(
+				[this](detail::connection_impl *conn) {
+				success_callback_(connection(conn));
+			});
+			impl_->bind_failed_callback(
+				[this](std::string error_code) {
+				failed_callback_(error_code);
+			});
+			_connector.impl_ = nullptr;
 		}
 		connector()
 		{
 		}
 		std::function<void(connection &&)> success_callback_;
-		 failed_callback_t failed_callback_;
+		failed_callback_t failed_callback_;
 		detail::connector_impl *impl_ = nullptr;
 		std::string ip_;
+		proactor *proactor_ = nullptr;
 		int port_;
 
 	};
-	class proactor: public no_copy_able
+	class proactor : public no_copy_able
 	{
 	public:
 		typedef timer_manager::timer_id timer_id;
@@ -354,7 +357,7 @@ namespace xnet
 		}
 		~proactor()
 		{
-			if(impl)
+			if (impl)
 			{
 				impl->stop();
 				delete impl;
@@ -379,7 +382,7 @@ namespace xnet
 			xnet_assert(impl);
 			impl->stop();
 		}
-		
+
 		acceptor get_acceptor()
 		{
 			xnet_assert(impl);
@@ -392,7 +395,7 @@ namespace xnet
 			xnet_assert(impl);
 			connector connector_;
 			connector_.init(impl->get_connector());
-			return connector_;
+			return std::move(connector_);
 		}
 		timer_id set_timer(uint32_t timeout, std::function<bool()> func)
 		{
@@ -410,5 +413,5 @@ namespace xnet
 	private:
 		detail::proactor_impl *impl;
 	};
-	
+
 }

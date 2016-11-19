@@ -135,6 +135,7 @@ namespace xnet
 							std::unique_lock<std::mutex> locker_(mtx);
 							sync.notify_one();
 						}
+						acceptor.close();
 					});
 					auto connector = pro.get_connector();
 					connector.bind_success_callback([&](connection &&connn) {
@@ -145,10 +146,16 @@ namespace xnet
 							std::unique_lock<std::mutex> locker_(mtx);
 							sync.notify_one();
 						}
+						connector.close();
+					});
+					connector.bind_fail_callback([](std::string &&str) {
+						std::cout << str << std::endl;
+						//xnet_assert(false);
 					});
 					connector.async_connect(ip, port);
 					pro.run();
 				});
+				
 
 				std::unique_lock<std::mutex> locker(mtx);
 				sync.wait(locker);

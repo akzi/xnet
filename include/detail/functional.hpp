@@ -31,11 +31,8 @@ namespace xnet
 		};
 		struct _selecter
 		{
-			int operator()(
-				SOCKET maxfds,
-				fd_set *readfds,
-				fd_set *writefds,
-				fd_set *exceptfds,
+			int operator()(SOCKET maxfds,fd_set *readfds,
+				fd_set *writefds,fd_set *exceptfds,
 				std::size_t timeout)
 			{
 				struct timeval tv = {
@@ -66,6 +63,15 @@ namespace xnet
 				return ioctlsocket(sock, FIONBIO, &nonblock);
 			}
 		};
+
+		struct setblocker
+		{
+			int operator()(SOCKET sock)
+			{
+				u_long nonblock = 0;
+				return ioctlsocket(sock, FIONBIO, &nonblock);
+			}
+		};
 #else
 		struct setnonblocker
 		{
@@ -92,10 +98,7 @@ namespace xnet
 				static _socket_initer inst;
 				return inst;
 			}
-			~_socket_initer()
-			{
-
-			}
+			~_socket_initer(){}
 		};
 		struct _selecter
 		{

@@ -1,3 +1,4 @@
+#define IOCP 0
 #include "../../include/proactor_pool.hpp"
 #include <list>
 
@@ -17,7 +18,7 @@ int main()
 	std::list<std::size_t> index_;
 
 	pp.bind("0.0.0.0", 9001).
-		set_size(0).
+		set_size(1).
 		regist_accept_callback([&](connection &&conn) {
 		std::lock_guard<std::mutex> lg(mtx);
 		std::size_t index;
@@ -41,7 +42,7 @@ int main()
 		});
 		connections[index].regist_send_callback(
 			[index, &connections, &index_](std::size_t len) {
-			int id = index;
+			auto id = index;
 			if (len == 0)
 			{
 				connections[id].close();

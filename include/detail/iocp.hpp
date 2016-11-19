@@ -74,6 +74,10 @@ namespace iocp
 			recv_overlapped_->connection_ = this;
 			recv_overlapped_->socket_ = sock;
 		}
+		void set_iocp(HANDLE _iocp)
+		{
+			iocp_ = _iocp;
+		}
 		~connection_impl()
 		{
 
@@ -122,11 +126,15 @@ namespace iocp
 		{
 			send_callback_ = callback;
 		}
+		int send(const char *data, int len)
+		{
+			return ::send(socket_, data, len, 0);
+		}
 		void async_send(std::string &&data)
 		{
 			xnet_assert(send_overlapped_->status_ ==
 						overLapped_context::e_idle);
-
+			bind_iocp();
 			DWORD bytes = 0;
 			send_overlapped_->reload(std::move(data));
 
@@ -147,7 +155,7 @@ namespace iocp
 		{
 			xnet_assert(recv_overlapped_->status_ ==
 						overLapped_context::e_idle);
-
+			bind_iocp();
 			DWORD bytes = 0;
 			DWORD flags = 0;
 			recv_overlapped_->reload(len);
@@ -167,6 +175,16 @@ namespace iocp
 			recv_overlapped_->status_ = overLapped_context::e_recv;
 		}
 	private:
+		void bind_iocp()
+		{
+			if (bind_iocp_)
+				return;
+			if (::CreateIoCompletionPort((HANDLE)socket_,iocp_, 0, 0) != iocp_)
+			{
+				throw socket_exception(WSAGetLastError());
+			}
+			bind_iocp_ = true;
+		}
 		friend class proactor_impl;
 		void recv_callbak(bool status)
 		{
@@ -178,6 +196,7 @@ namespace iocp
 			}
 			else
 			{
+				auto error = WSAGetLastError();
 				recv_callback_(NULL, 0);
 			}
 		}
@@ -194,9 +213,10 @@ namespace iocp
 				send_callback_(0);
 			}
 		}
+		bool bind_iocp_ = false;
 		std::function<void(char*, std::size_t)> recv_callback_;
 		std::function<void(std::size_t)> send_callback_;
-
+		HANDLE iocp_ = NULL;
 		overLapped_context *send_overlapped_ = NULL;
 		overLapped_context *recv_overlapped_ = NULL;
 		SOCKET socket_ = INVALID_SOCKET;
@@ -218,8 +238,8 @@ namespace iocp
 				overLapped_context_->acceptor_ = nullptr;
 				overLapped_context_->socket_ = INVALID_SOCKET;
 			}
-			if(listener_sock_ != INVALID_SOCKET)
-				closesocket(listener_sock_);
+			if(socket_ != INVALID_SOCKET)
+				closesocket(socket_);
 			if(accept_socket_ != INVALID_SOCKET)
 				closesocket(accept_socket_);
 		}
@@ -228,21 +248,25 @@ namespace iocp
 		{
 			acceptor_callback_ = callback;
 		}
+		void get_addr(std::string &ip, int &port)
+		{
+			sockaddr_in addr;
+			int len = sizeof(addr);
+			xnet_assert(!getsockname(socket_, (struct sockaddr*)&addr, &len));
+			ip = inet_ntoa(addr.sin_addr);
+			port = ntohs(addr.sin_port);
+		}
 		void bind(const std::string &ip, int port)
 		{
-			if(listener_sock_ != INVALID_SOCKET)
-				closesocket(listener_sock_);
-			listener_sock_ = WSASocket(AF_INET,
+			if(socket_ != INVALID_SOCKET)
+				closesocket(socket_);
+			socket_ = WSASocket(AF_INET,
 										SOCK_STREAM,
 										IPPROTO_TCP,
 										NULL,
 										0,
 										WSA_FLAG_OVERLAPPED);
-
-			if(INVALID_SOCKET == listener_sock_)
-			{
-				throw socket_exception(WSAGetLastError());
-			}
+			xnet_assert(socket_ != INVALID_SOCKET);
 
 			struct sockaddr_in addr;
 			ZeroMemory((char *)&addr, sizeof(addr));
@@ -250,21 +274,21 @@ namespace iocp
 			addr.sin_addr.s_addr = inet_addr(ip.c_str());
 			addr.sin_port = htons(port);
 
-			if(SOCKET_ERROR == ::bind(listener_sock_,
+			if(SOCKET_ERROR == ::bind(socket_,
 				(struct sockaddr *) &addr,
 				sizeof(addr)))
 			{
 				throw socket_exception(WSAGetLastError());
 			}
 
-			if(SOCKET_ERROR == listen(listener_sock_, SOMAXCONN))
+			if(SOCKET_ERROR == listen(socket_, SOMAXCONN))
 			{
 				throw socket_exception(WSAGetLastError());
 			}
 
 			DWORD dwBytes = 0;
 			GUID GuidAcceptEx = WSAID_ACCEPTEX;
-			if(WSAIoctl(listener_sock_,
+			if(WSAIoctl(socket_,
 				SIO_GET_EXTENSION_FUNCTION_POINTER,
 				&GuidAcceptEx,
 				sizeof(GuidAcceptEx),
@@ -278,10 +302,7 @@ namespace iocp
 			}
 			xnet_assert(acceptex_func_);
 
-			if(::CreateIoCompletionPort((HANDLE)listener_sock_,
-				IOCompletionPort_,
-				0,
-				1) != IOCompletionPort_)
+			if(::CreateIoCompletionPort((HANDLE)socket_,IOCP_,0,1) != IOCP_)
 			{
 				throw socket_exception(WSAGetLastError());
 			}
@@ -304,18 +325,14 @@ namespace iocp
 			if(setsockopt(accept_socket_,
 				SOL_SOCKET,
 				SO_UPDATE_ACCEPT_CONTEXT,
-				(char *)&listener_sock_,
-				sizeof(listener_sock_)) != 0)
+				(char *)&socket_,
+				sizeof(socket_)) != 0)
 			{
 				throw socket_exception(WSAGetLastError());
 				return;
 			}
 			connection_impl *conn = new connection_impl(accept_socket_);
-			if(::CreateIoCompletionPort((HANDLE)accept_socket_,
-				IOCompletionPort_, 0, 0) != IOCompletionPort_)
-			{
-				throw socket_exception(WSAGetLastError());
-			}
+			conn->set_iocp(IOCP_);
 			xnet_assert(acceptor_callback_);
 			accept_socket_ = INVALID_SOCKET;
 			do_accept();
@@ -339,7 +356,7 @@ namespace iocp
 			}
 			DWORD address_size = sizeof(sockaddr_in) + 16;
 
-			if(acceptex_func_(listener_sock_,
+			if(acceptex_func_(socket_,
 				accept_socket_,
 				addr_buffer_,
 				0,
@@ -362,9 +379,9 @@ namespace iocp
 		char addr_buffer_[128];
 		DWORD bytesReceived_ = 0;
 		LPFN_ACCEPTEX acceptex_func_ = NULL;
-		SOCKET listener_sock_ = INVALID_SOCKET;
+		SOCKET socket_ = INVALID_SOCKET;
 		SOCKET accept_socket_ = INVALID_SOCKET;
-		HANDLE IOCompletionPort_ = NULL;
+		HANDLE IOCP_ = NULL;
 		overLapped_context *overLapped_context_ = NULL;
 		std::function<void(connection_impl*)> acceptor_callback_;
 	};
@@ -402,45 +419,30 @@ namespace iocp
 								NULL,
 								0,
 								WSA_FLAG_OVERLAPPED);
-			if(socket_ == INVALID_SOCKET)
-			{
-				throw socket_exception(WSAGetLastError());
-			}
+			xnet_assert(socket_ != INVALID_SOCKET);
 
-			if(CreateIoCompletionPort(reinterpret_cast<HANDLE>(socket_),
-				IOCompletionPort_,
-				0,
-				0) != IOCompletionPort_)
-			{
-				throw socket_exception(WSAGetLastError());
-			}
+			xnet_assert(CreateIoCompletionPort(
+				reinterpret_cast<HANDLE>(socket_), iocp_, 0, 0) == iocp_);
+
 			GUID connectex_guid = WSAID_CONNECTEX;
 			DWORD bytes_returned;
 
-			if(WSAIoctl(socket_,
+			xnet_assert(WSAIoctl(socket_,
 				SIO_GET_EXTENSION_FUNCTION_POINTER,
 				&connectex_guid,
 				sizeof(connectex_guid),
 				&connectex_func_,
 				sizeof(connectex_func_),
-				&bytes_returned,
-				NULL,
-				NULL) == SOCKET_ERROR)
-			{
-				throw socket_exception(WSAGetLastError());
-			}
+				&bytes_returned, NULL,NULL) != SOCKET_ERROR);
 
 			struct sockaddr_in addr;
 			memset(&addr, 0, sizeof(addr));
 			addr.sin_family = AF_INET;
 			addr.sin_addr.s_addr = INADDR_ANY;
 			addr.sin_port = 0;
-			if(bind(socket_,
+			xnet_assert(bind(socket_,
 				reinterpret_cast<SOCKADDR*>(&addr),
-				sizeof(addr)) == SOCKET_ERROR)
-			{
-				throw socket_exception(WSAGetLastError());
-			}
+				sizeof(addr)) != SOCKET_ERROR);
 
 			struct sockaddr_in socket_address;
 			ZeroMemory((char *)&socket_address, sizeof(socket_address));
@@ -460,8 +462,7 @@ namespace iocp
 				&bytes,
 				reinterpret_cast<LPOVERLAPPED>(overLapped_context_)))
 			{
-				if(WSAGetLastError() != ERROR_IO_PENDING)
-					throw socket_exception(WSAGetLastError());
+				xnet_assert(WSAGetLastError() == ERROR_IO_PENDING);
 			}
 		}
 		void close()
@@ -503,7 +504,7 @@ namespace iocp
 		SOCKET socket_ = INVALID_SOCKET;
 		std::function<void(connection_impl *)> success_callback_;
 		std::function<void(std::string)> failed_callback_;
-		HANDLE IOCompletionPort_ = NULL;
+		HANDLE iocp_ = NULL;
 	};
 
 	class proactor_impl
@@ -526,9 +527,9 @@ namespace iocp
 					throw socket_exception(nResult);
 				}
 			});
-			IOCompletionPort_ = CreateIoCompletionPort(
+			iocp_ = CreateIoCompletionPort(
 				INVALID_HANDLE_VALUE, NULL, 0, 1);
-			if(IOCompletionPort_ == NULL)
+			if(iocp_ == NULL)
 			{
 				throw socket_exception(GetLastError());
 			}
@@ -543,7 +544,7 @@ namespace iocp
 				DWORD timeout = (DWORD)timer_manager_.do_timer();
 				timeout = timeout ? timeout : 1000;
 				BOOL status = GetQueuedCompletionStatus(
-					IOCompletionPort_,
+					iocp_,
 					&bytes,
 					(PULONG_PTR)&key,
 					(LPOVERLAPPED*)&overlapped,
@@ -571,22 +572,22 @@ namespace iocp
 			is_stop_ = true;
 			overLapped_context *overlapped = new overLapped_context;
 			overlapped->status_ = overLapped_context::e_stop;
-			PostQueuedCompletionStatus(IOCompletionPort_,
+			PostQueuedCompletionStatus(iocp_,
 										0,
 										(ULONG_PTR)this, (LPOVERLAPPED)overlapped);
 		}
-		acceptor_impl *get_acceptor()
+		acceptor_impl *get_acceptor() const
 		{
 			acceptor_impl *acceptor = new acceptor_impl;
-			xnet_assert(IOCompletionPort_);
-			acceptor->IOCompletionPort_ = IOCompletionPort_;
+			xnet_assert(iocp_);
+			acceptor->IOCP_ = iocp_;
 			return acceptor;
 		}
 		connector_impl *get_connector()
 		{
 			connector_impl *acceptor = new connector_impl;
-			xnet_assert(IOCompletionPort_);
-			acceptor->IOCompletionPort_ = IOCompletionPort_;
+			xnet_assert(iocp_);
+			acceptor->iocp_ = iocp_;
 			return acceptor;
 		}
 		timer_id set_timer(std::size_t timeout, std::function<bool()> timer_callback)
@@ -596,6 +597,11 @@ namespace iocp
 		void cancel_timer(timer_id id)
 		{
 			timer_manager_.cancel_timer(id);
+		}
+		void regist_connection(connection_impl &conn)
+		{
+			xnet_assert(!conn.bind_iocp_);
+			conn.iocp_= iocp_;
 		}
 	private:
 		void continue_send(overLapped_context *overlapped, DWORD bytes)
@@ -734,7 +740,7 @@ namespace iocp
 		}
 		timer_manager timer_manager_;
 		bool is_stop_ = false;
-		HANDLE IOCompletionPort_ = NULL;
+		HANDLE iocp_ = NULL;
 	};
 }
 

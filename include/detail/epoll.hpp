@@ -268,6 +268,14 @@ namespace epoll
  			regist_acceptor_(this);
 			regist_accept_ctx_(accept_ctx_);
 		}
+		void get_addr(std::string &ip, int &port)
+		{
+			sockaddr_in addr;
+			int len = sizeof(addr);
+			xnet_assert(!getsockname(socket_, (struct sockaddr*)&addr, &len));
+			ip = inet_ntoa(addr.sin_addr);
+			port = ntohs(addr.sin_port);
+		}
 		void close()
 		{
 			unregist_acceptor_(this);

@@ -51,6 +51,9 @@
     <ClInclude Include="include\detail\functional.hpp">
       <Filter>头文件\detail</Filter>
     </ClInclude>
+    <ClInclude Include="include\proactor_pool.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\xnet.cpp">

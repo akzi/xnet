@@ -47,7 +47,9 @@ namespace xnet
 			duration_caster<milliseconds, high_resolution_clock::duration> caster;
 			time_pointer<high_resolution_clock> time_point;
 			auto now = time_point();
-			while (size() && caster(itr->first.time_since_epoch()) <= caster(now.time_since_epoch()))
+			while (size() &&
+				(caster(itr->first.time_since_epoch()) <= 
+					caster(now.time_since_epoch())))
 			{
 				xtimer timer = itr->second;
 				erase(itr);
@@ -64,9 +66,12 @@ namespace xnet
 				else
 					return 0;
 			}
-			return (caster(itr->first.time_since_epoch()) - caster(now.time_since_epoch())).count();
+			return (caster(itr->first.time_since_epoch()) - 
+				caster(now.time_since_epoch())).count();
 		}
-		timer_id set_timer(std::size_t timeout, std::function<bool()> timer_callback)
+		timer_id set_timer(
+			std::size_t timeout, 
+			std::function<bool()> timer_callback)
 		{
 			auto timer_point = std::chrono::high_resolution_clock::now()
 				+ std::chrono::high_resolution_clock::

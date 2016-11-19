@@ -18,25 +18,9 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="include\common\guard.hpp" />
-    <ClInclude Include="include\common\no_copy_able.hpp" />
-    <ClInclude Include="include\detail\detail.hpp" />
-    <ClInclude Include="include\detail\epoll.hpp" />
-    <ClInclude Include="include\detail\exceptions.hpp" />
-    <ClInclude Include="include\detail\functional.hpp" />
-    <ClInclude Include="include\detail\iocp.hpp" />
-    <ClInclude Include="include\detail\select.hpp" />
-    <ClInclude Include="include\detail\timer.hpp" />
-    <ClInclude Include="include\proactor_pool.hpp" />
-    <ClInclude Include="include\xnet.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\xnet.cpp" />
-  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{63092D8C-CCB9-4B4C-876D-BEE43FC8E985}</ProjectGuid>
-    <RootNamespace>xnet</RootNamespace>
+    <ProjectGuid>{0B86370E-DBC0-4E89-A2AE-55EBA77E28BB}</ProjectGuid>
+    <RootNamespace>mt_server</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -54,7 +38,7 @@
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v140</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
@@ -97,7 +81,6 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(SolutionDir)include</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -126,6 +109,9 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="mt_server.cpp" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

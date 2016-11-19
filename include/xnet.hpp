@@ -44,6 +44,10 @@ namespace xnet
 			recv_callback_ = callback;
 			return *this;
 		}
+		int send(const char *data, int len)
+		{
+			return impl_->send(data, len);
+		}
 		void async_send(std::string &&buffer)
 		{
 			xnet_assert(impl_);
@@ -59,7 +63,7 @@ namespace xnet
 			}
 		}
 
-		void async_send(const void *data, int len)
+		void async_send(const char *data, int len)
 		{
 			xnet_assert(len);
 			xnet_assert(data);
@@ -67,7 +71,7 @@ namespace xnet
 
 			try
 			{
-				impl_->async_send({(char*)data, (uint32_t)len});
+				impl_->async_send({data, (uint32_t)len});
 			}
 			catch (std::exception& e)
 			{
@@ -116,6 +120,7 @@ namespace xnet
 			return !!impl_;
 		}
 	private:
+		friend proactor;
 		void reset_move(connection && _conn)
 		{
 			if (this != &_conn)
@@ -178,6 +183,20 @@ namespace xnet
 			catch (detail::socket_exception &e)
 			{
 				std::cout << e.str()<< std::endl;
+				return false;
+			}
+			return true;
+		}
+		bool get_addr(std::string &ip, int &port)
+		{
+			try
+			{
+				assert(impl_);
+				impl_->get_addr(ip, port);
+			}
+			catch (detail::socket_exception &e)
+			{
+				std::cout << e.str() << std::endl;
 				return false;
 			}
 			return true;
@@ -382,6 +401,11 @@ namespace xnet
 		void cancel_timer(timer_id id)
 		{
 			impl->cancel_timer(id);
+		}
+		void regist_connection(connection &conn)
+		{
+			xnet_assert(conn.impl_);
+			impl->regist_connection(*conn.impl_);
 		}
 	private:
 		detail::proactor_impl *impl;

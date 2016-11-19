@@ -226,6 +226,14 @@ namespace select
 			xnet_assert(regist_accept_ctx_);
 			regist_accept_ctx_(accept_ctx_);
 		}
+		void get_addr(std::string &ip, int &port)
+		{
+			sockaddr_in addr;
+			int len = sizeof(addr);
+			xnet_assert(!getsockname(socket_, (struct sockaddr*)&addr, &len));
+			ip = inet_ntoa(addr.sin_addr);
+			port = ntohs(addr.sin_port);
+		}
 		void close()
 		{
 			del_io_context_(accept_ctx_);

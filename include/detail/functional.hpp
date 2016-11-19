@@ -3,7 +3,7 @@ namespace xnet
 {
 	namespace detail
 	{
-#ifdef _WIN32
+#ifdef _MSC_VER
 		struct _socket_closer
 		{
 			void operator()(SOCKET s)
@@ -81,6 +81,16 @@ namespace xnet
 				if(flags == -1)
 					flags = 0;
 				return fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+			}
+		};
+		struct setblocker
+		{
+			int operator()(int sock)
+			{
+				int flags = fcntl(sock, F_GETFL, 0);
+				if (flags == -1)
+					flags = 0;
+				return fcntl(sock, F_SETFL, flags &~O_NONBLOCK);
 			}
 		};
 

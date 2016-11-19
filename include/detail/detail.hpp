@@ -18,6 +18,7 @@
 #include "../common/no_copy_able.hpp"
 #include "timer.hpp"
 #define SELECT 1
+#undef _MSC_VER
 #if defined _MSC_VER
 #undef FD_SETSIZE
 #define FD_SETSIZE      1024
@@ -34,7 +35,7 @@
 #pragma comment(lib, "Mswsock.lib")
 #else
 #define _LINUX_
-#define EPOLL 0
+#define EPOLL 1
 #include <unistd.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>

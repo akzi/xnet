@@ -30,7 +30,7 @@ namespace xnet
 		private:
 			void init_error_msg()
 			{
-#ifdef _WIN32
+#ifdef _MSC_VER
 				static char errmsg[512];
 
 				if(!FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,0,
@@ -49,7 +49,7 @@ namespace xnet
 			int error_code_ = 0;
 			std::string error_str_;
 		};
-#ifdef _WIN32
+#ifdef _MSC_VER
 #define xnet_assert(x) \
 		if(!(x)) \
 			throw detail::socket_exception\

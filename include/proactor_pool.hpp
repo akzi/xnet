@@ -1,6 +1,7 @@
 #pragma once
 #include "xnet.hpp"
 #include <thread>
+#include <condition_variable>
 #include <mutex>
 #include <memory>
 namespace xnet
@@ -11,9 +12,8 @@ namespace xnet
 		struct mailbox
 		{
 			mailbox() {}
-			mailbox(const mailbox &self) 
+			mailbox(const mailbox &) 
 			{
-
 			}
 			mailbox(mailbox && self) 
 			{
@@ -69,7 +69,7 @@ namespace xnet
 		{
 			return size_;
 		}
-		proactor &get_proactor(int index)
+		proactor &get_proactor(std::size_t index)
 		{
 			if (index >= proactors_.size())
 				throw std::out_of_range(
@@ -127,6 +127,7 @@ namespace xnet
 					acceptor.bind("127.0.0.1", 0);
 					xnet_assert(acceptor.get_addr(ip, port));
 					acceptor.regist_accept_callback([&](connection &&conn) {
+						std::cout <<"regist_accept_callback"<<std::endl;
 						mailboxs_.back().proactor_ = &pro;
 						mailboxs_.back().recevier_ = std::move(conn);
 						if (++count == 2)
@@ -139,6 +140,7 @@ namespace xnet
 					});
 					auto connector = pro.get_connector();
 					connector.bind_success_callback([&](connection &&connn) {
+						std::cout << "bind_success_callback" <<std::endl;
 						mailboxs_.back().sender_ = std::move(connn);
 						if (++count == 2)
 						{
@@ -149,8 +151,8 @@ namespace xnet
 						connector.close();
 					});
 					connector.bind_fail_callback([](std::string &&str) {
+						std::cout << "bind_fail_callback" <<std::endl;
 						std::cout << str << std::endl;
-						//xnet_assert(false);
 					});
 					connector.async_connect(ip, port);
 					pro.run();
@@ -160,6 +162,7 @@ namespace xnet
 				std::unique_lock<std::mutex> locker(mtx);
 				sync.wait(locker);
 			}
+			std::cout << "init_mailbox done"<<std::endl;
 		}
 		void accept_callback(connection && conn)
 		{
@@ -179,7 +182,7 @@ namespace xnet
 		void init_mailbox(mailbox &mbox)
 		{
 			mbox.recevier_.regist_recv_callback(
-				[this,&mbox](char *data, std::size_t len)
+				[this,&mbox](char *, std::size_t len)
 			{
 				xnet_assert(len);
 				xnet_assert(accept_callback_);

@@ -46,6 +46,7 @@ namespace xnet
 		}
 		int send(const char *data, int len)
 		{
+			xnet_assert(impl_);
 			return impl_->send(data, len);
 		}
 		void async_send(std::string &&buffer)

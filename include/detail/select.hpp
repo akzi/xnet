@@ -239,7 +239,7 @@ namespace select
 		void get_addr(std::string &ip, int &port)
 		{
 			sockaddr_in addr;
-			int len = sizeof(addr);
+			socklen_t len = sizeof(addr);
 			xnet_assert(!getsockname(socket_, (struct sockaddr*)&addr, &len));
 			ip = inet_ntoa(addr.sin_addr);
 			port = ntohs(addr.sin_port);

@@ -1,6 +1,8 @@
 #pragma once
 namespace xnet
 {
+namespace detail
+{
 namespace epoll
 {
 	class socket_exception :std::exception
@@ -75,7 +77,7 @@ namespace epoll
 	class connection_impl
 	{
 	public:
-		typedef std::function<void(void*, int)> recv_callback_t;
+		typedef std::function<void(char*, int)> recv_callback_t;
 		typedef std::function<void(int)> send_callback_t;
 		connection_impl(SOCKET _socket)
 			:socket_(_socket)
@@ -95,7 +97,7 @@ namespace epoll
 		}
 		int send(const char *data, int len)
 		{
-			::send(socket_, data, len, 0);
+			return ::send(socket_, data, len, 0);
 		}
 		void async_send(std::string  &&data)
 		{
@@ -267,7 +269,7 @@ namespace epoll
 		void get_addr(std::string &ip, int &port)
 		{
 			sockaddr_in addr;
-			int len = sizeof(addr);
+			socklen_t len = sizeof(addr);
 			xnet_assert(!getsockname(socket_, 
 				(struct sockaddr*)&addr, &len));
 			ip = inet_ntoa(addr.sin_addr);
@@ -275,8 +277,13 @@ namespace epoll
 		}
 		void close()
 		{
+			
 			unregist_acceptor_(this);
-			delete this;
+			
+			if(is_callback_)
+				is_close_ = true;
+			else
+				delete this;
 		}
 	private:
 		friend class proactor_impl;
@@ -291,7 +298,8 @@ namespace epoll
 				{
 					if(errno == EAGAIN  || errno == EWOULDBLOCK)
 						return;
-					std::cout << strerror(errno) << std::endl;
+					std::cout <<"file:"<<__FILE__<<" line:"<<__LINE__
+						<<" errno:"<<errno <<" error_str: "<<strerror(errno) <<" socket:"<<socket_<< std::endl;
 					return;
 				}
 				xnet_assert(!setnonblocker()(sock));
@@ -304,11 +312,19 @@ namespace epoll
 				conn->regist_connection_= regist_connection_;
 				conn->unregist_connection_ = unregist_connection_;
 				conn->init();
+				is_callback_ = true;
 				acceptor_callback_(conn);
+				is_callback_ = false;
+				if(is_close_)
+				{
+					delete this;
+					return ;
+				}
 
 			} while(true);
 		}
-
+		bool is_callback_ = false;
+		bool is_close_ = false;
 		SOCKET socket_ = INVALID_SOCKET;
 		io_context* accept_ctx_ = NULL;
 		std::function<void(io_context*)> regist_accept_ctx_;
@@ -366,17 +382,16 @@ namespace epoll
 				(struct sockaddr*)&addr, sizeof(addr));
 			if(res == 0)
 			{
+				TRACE;
 				on_connect(true);
 				return;
 			}
-			trace;
+			TRACE;
 			xnet_assert(errno == EINTR || errno == EINPROGRESS);
-
 			xnet_assert(regist_connector_);
 			xnet_assert(regist_connect_ctx_);
 			regist_connector_(this);
 			regist_connect_ctx_(connect_ctx_);
-			trace;
 		}
 		void close()
 		{
@@ -395,6 +410,7 @@ namespace epoll
 
 		void on_connect(bool result)
 		{
+			TRACE;
 			if(!result)
 			{
 				unregist_connector_(this);
@@ -511,7 +527,7 @@ namespace epoll
 				}
 				else if(n == 0) 
 					continue;
-
+				std::cout << n << std::endl;
 				for(int i = 0; i < n; i++)
 				{
 					event_context *event_ctx =
@@ -532,7 +548,6 @@ namespace epoll
 				}
 				if(del_event_ctx_.size())
 				{
-					std::cout.flush();
 					for (auto itr: del_event_ctx_)
 					{
 						if(itr->recv_ctx_)
@@ -578,7 +593,7 @@ namespace epoll
 				std::bind(&proactor_impl::unregist_connection, this,
 						  std::placeholders::_1);
 			connector->regist_connect_ctx_ =
-				std::bind(&proactor_impl::regist_recv, this,
+				std::bind(&proactor_impl::regist_send, this,
 							std::placeholders::_1);
 			return connector;
 		}
@@ -689,10 +704,11 @@ namespace epoll
 
 		void regist_connector(connector_impl *connector)
 		{
+			TRACE;
 			event_context *event_ctx = new event_context;
 			memset(event_ctx, 0, sizeof(event_context));
 			connector->connect_ctx_->event_ctx_ = event_ctx;
-			event_ctx->recv_ctx_ = connector->connect_ctx_;
+			event_ctx->send_ctx_ = connector->connect_ctx_;
 			event_ctx->socket_ = connector->socket_;
 			event_ctx->ev_.events = 0;
 			event_ctx->ev_.data.ptr = event_ctx;
@@ -709,6 +725,7 @@ namespace epoll
 
 		void regist_send(io_context *io_ctx)
 		{
+			TRACE;
 			xnet_assert(io_ctx);
 			event_context *event_ctx = 
 				(event_context*)io_ctx->event_ctx_;
@@ -732,6 +749,7 @@ namespace epoll
 		}
 		void regist_recv(io_context *io_ctx)
 		{
+			TRACE;
 			xnet_assert(io_ctx);
 			xnet_assert(io_ctx->event_ctx_);
 			event_context *event_ctx = 
@@ -744,6 +762,7 @@ namespace epoll
 		}
 		void unregist_recv(io_context *io_ctx)
 		{
+			TRACE;
 			xnet_assert(io_ctx);
 			xnet_assert(io_ctx->event_ctx_);
 			event_context *event_ctx = 
@@ -894,4 +913,5 @@ typedef epoll::connection_impl connection_impl;
 typedef epoll::acceptor_impl acceptor_impl;
 typedef epoll::proactor_impl proactor_impl;
 typedef epoll::connector_impl connector_impl;
+}
 }

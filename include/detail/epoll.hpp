@@ -163,7 +163,9 @@ namespace epoll
 			else
 				send_callback_handle_(0);
 			in_callback_ = false;
-			if(status && send_ctx_->status_ != io_context::e_send)
+			if(status && 
+				!close_flag_  &&
+				send_ctx_->status_ != io_context::e_send)
 			{
 				send_ctx_->last_status_ = io_context::e_idle;
 				unregist_send_ctx_(send_ctx_);
@@ -185,7 +187,9 @@ namespace epoll
 				recv_callback_handle_(NULL, 0);
 			
 			in_callback_ = false;
-			if(status && recv_ctx_->status_ != io_context::e_recv)
+			if(status && 
+				!close_flag_ && 
+				recv_ctx_->status_ != io_context::e_recv)
 			{
 				recv_ctx_->last_status_ = io_context::e_idle;
 				unregist_recv_ctx_(recv_ctx_);
@@ -382,11 +386,9 @@ namespace epoll
 				(struct sockaddr*)&addr, sizeof(addr));
 			if(res == 0)
 			{
-				TRACE;
 				on_connect(true);
 				return;
 			}
-			TRACE;
 			xnet_assert(errno == EINTR || errno == EINPROGRESS);
 			xnet_assert(regist_connector_);
 			xnet_assert(regist_connect_ctx_);
@@ -410,7 +412,6 @@ namespace epoll
 
 		void on_connect(bool result)
 		{
-			TRACE;
 			if(!result)
 			{
 				unregist_connector_(this);
@@ -439,7 +440,6 @@ namespace epoll
 			{
 				auto conn = new connection_impl(socket_);
 				xnet_assert(connect_ctx_);
-				conn->socket_ = socket_;
 				conn->recv_ctx_ = connect_ctx_;
 				conn->recv_ctx_->status_ = io_context::e_idle;
 				conn->recv_ctx_->connection_ = conn;
@@ -667,17 +667,25 @@ namespace epoll
 	private:
 		void regist_connection2(connection_impl *conn)
 		{
-			event_context *event_ctx = new event_context;
+			event_context *event_ctx = nullptr;
+			if (conn->recv_ctx_->event_ctx_)
+				event_ctx =reinterpret_cast<event_context *>(
+						conn->recv_ctx_->event_ctx_);
+			else
+				event_ctx = new event_context;
+			xnet_assert(event_ctx);
 			memset(event_ctx, 0, sizeof(event_context));
 			conn->send_ctx_->event_ctx_ = event_ctx;
 			conn->recv_ctx_->event_ctx_ = event_ctx;
 			event_ctx->recv_ctx_ = conn->recv_ctx_;
 			event_ctx->send_ctx_ = conn->send_ctx_;
+			std::cout << conn->socket_ << std::endl;
 			event_ctx->socket_ = conn->socket_;
 			event_ctx->ev_.events = 0;
 			event_ctx->ev_.data.ptr = event_ctx;
-			xnet_assert(!epoll_ctl(epfd_, EPOLL_CTL_ADD,
-						event_ctx->socket_, &event_ctx->ev_));
+			auto ret = epoll_ctl(epfd_, EPOLL_CTL_ADD, 
+					event_ctx->socket_, &event_ctx->ev_);
+			xnet_assert(!ret || errno == EEXIST);
 		}
 		void unregist_connection(connection_impl *conn)
 		{
@@ -704,7 +712,6 @@ namespace epoll
 
 		void regist_connector(connector_impl *connector)
 		{
-			TRACE;
 			event_context *event_ctx = new event_context;
 			memset(event_ctx, 0, sizeof(event_context));
 			connector->connect_ctx_->event_ctx_ = event_ctx;
@@ -725,7 +732,6 @@ namespace epoll
 
 		void regist_send(io_context *io_ctx)
 		{
-			TRACE;
 			xnet_assert(io_ctx);
 			event_context *event_ctx = 
 				(event_context*)io_ctx->event_ctx_;
@@ -749,7 +755,6 @@ namespace epoll
 		}
 		void regist_recv(io_context *io_ctx)
 		{
-			TRACE;
 			xnet_assert(io_ctx);
 			xnet_assert(io_ctx->event_ctx_);
 			event_context *event_ctx = 
@@ -762,12 +767,12 @@ namespace epoll
 		}
 		void unregist_recv(io_context *io_ctx)
 		{
-			TRACE;
 			xnet_assert(io_ctx);
 			xnet_assert(io_ctx->event_ctx_);
 			event_context *event_ctx = 
 				(event_context*)io_ctx->event_ctx_;
 			xnet_assert(event_ctx);
+			std::cout << event_ctx->socket_ << std::endl;
 			event_ctx->ev_.events &= ~((short)EPOLLIN);
 			xnet_assert(!epoll_ctl(epfd_, EPOLL_CTL_MOD,
 						event_ctx->socket_, &event_ctx->ev_));

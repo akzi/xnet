@@ -118,16 +118,13 @@ namespace epoll
 			if(recv_ctx_->last_status_ == io_context::e_recv)
 				return;
 			xnet_assert(regist_recv_ctx_);
-			TRACE;
 			check_regist();
 			regist_recv_ctx_(recv_ctx_);
 		}
 		void close()
 		{
-			TRACE;
 			if(send_ctx_->status_ == io_context::e_idle)
 			{
-				TRACE;
 				unregist_connection_(this);
 			}
 			else if(send_ctx_->status_ == io_context::e_send)
@@ -200,7 +197,6 @@ namespace epoll
 				!close_flag_ && 
 				recv_ctx_->status_ != io_context::e_recv)
 			{
-				TRACE;
 				recv_ctx_->last_status_ = io_context::e_idle;
 				unregist_recv_ctx_(recv_ctx_);
 			}
@@ -279,7 +275,6 @@ namespace epoll
 			xnet_assert(regist_acceptor_);
 			xnet_assert(accept_ctx_); 
  			regist_acceptor_(this);
-			TRACE;
 			regist_accept_ctx_(accept_ctx_);
 		}
 		void get_addr(std::string &ip, int &port)
@@ -411,7 +406,6 @@ namespace epoll
 		{
 			if(connect_ctx_)
 			{
-				TRACE;
 				unregist_connector_(this);
 				connect_ctx_ = NULL;
 			}
@@ -451,7 +445,6 @@ namespace epoll
 
 			if(err == 0)
 			{
-				TRACE;
 				unregist_connect_ctx_(connect_ctx_);
 				connect_ctx_->status_ = io_context::e_idle;
 

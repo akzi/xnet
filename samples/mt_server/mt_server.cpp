@@ -1,4 +1,3 @@
-#define IOCP 0
 #include "../../include/proactor_pool.hpp"
 #include <list>
 

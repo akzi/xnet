@@ -76,6 +76,10 @@ namespace xnet
 					"index >= proactors_.size()");
 			return proactors_[index];
 		}
+		proactor &get_current_proactor()
+		{
+			return *current_proactor_store(nullptr);
+		}
 		proactor_pool &bind(const std::string &ip, int port)
 		{
 			ip_ = ip;
@@ -96,6 +100,13 @@ namespace xnet
 			do_stop();
 		}
 	private:
+		proactor* current_proactor_store(proactor *_proactor)
+		{
+			static thread_local proactor *current_proactor_ = nullptr;
+			if (_proactor)
+				current_proactor_ = _proactor;
+			return _proactor;
+		}
 		void do_start()
 		{
 			if (!size_) 
@@ -155,6 +166,7 @@ namespace xnet
 						std::cout << str << std::endl;
 					});
 					connector.async_connect(ip, port);
+					current_proactor_store(&pro);
 					pro.run();
 				});
 				

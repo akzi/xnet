@@ -18,7 +18,6 @@
 #include "../common/no_copy_able.hpp"
 #include "timer.hpp"
 #define SELECT 1
-#undef _MSC_VER
 #if defined _MSC_VER
 #undef FD_SETSIZE
 #define FD_SETSIZE      1024
@@ -56,7 +55,6 @@ typedef int SOCKET;
 #include "exceptions.hpp"
 #include "functional.hpp"
 #endif
-#define TRACE std::cout << "FILE:"<<__FILE__<<" LINE:"<<__LINE__<<" FUNC:"<<__FUNCTION__<<std::endl;
 #if IOCP
 #include "iocp.hpp"
 #elif EPOLL 

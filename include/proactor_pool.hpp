@@ -138,7 +138,6 @@ namespace xnet
 					acceptor.bind("127.0.0.1", 0);
 					xnet_assert(acceptor.get_addr(ip, port));
 					acceptor.regist_accept_callback([&](connection &&conn) {
-						std::cout <<"regist_accept_callback"<<std::endl;
 						mailboxs_.back().proactor_ = &pro;
 						mailboxs_.back().recevier_ = std::move(conn);
 						if (++count == 2)
@@ -151,7 +150,6 @@ namespace xnet
 					});
 					auto connector = pro.get_connector();
 					connector.bind_success_callback([&](connection &&connn) {
-						std::cout << "bind_success_callback" <<std::endl;
 						mailboxs_.back().sender_ = std::move(connn);
 						if (++count == 2)
 						{
@@ -162,19 +160,15 @@ namespace xnet
 						connector.close();
 					});
 					connector.bind_fail_callback([](std::string &&str) {
-						std::cout << "bind_fail_callback" <<std::endl;
 						std::cout << str << std::endl;
 					});
 					connector.async_connect(ip, port);
 					current_proactor_store(&pro);
 					pro.run();
 				});
-				
-
 				std::unique_lock<std::mutex> locker(mtx);
 				sync.wait(locker);
 			}
-			std::cout << "init_mailbox done"<<std::endl;
 		}
 		void accept_callback(connection && conn)
 		{

@@ -54,18 +54,19 @@ namespace xnet
 		};
 	public:
 		typedef std::function<void(connection &&) > accept_callback_t;
+		typedef std::function<void(void)> callbck_t;
 		proactor_pool()
 			:proactors_(1),
 			acceptor_(std::move(proactors_[0].get_acceptor()))
 		{
 
 		}
-		proactor_pool &set_size(int size)
+		proactor_pool &set_size(std::size_t size)
 		{
 			size_ = size;
 			return *this;
 		}
-		int get_size()
+		std::size_t get_size()
 		{
 			return size_;
 		}
@@ -98,6 +99,16 @@ namespace xnet
 		void stop()
 		{
 			do_stop();
+		}
+		proactor_pool & regist_run_before(callbck_t callback)
+		{
+			run_before_callbck_ = callback;
+			return *this;
+		}
+		proactor_pool &regist_run_end(callbck_t callbck)
+		{
+			run_end_callbck_ = callbck;
+			return *this;
 		}
 	private:
 		proactor* current_proactor_store(proactor *_proactor)
@@ -164,7 +175,11 @@ namespace xnet
 					});
 					connector.async_connect(ip, port);
 					current_proactor_store(&pro);
+					if(run_before_callbck_)
+						run_before_callbck_();
 					pro.run();
+					if (run_end_callbck_)
+						run_end_callbck_();
 				});
 				std::unique_lock<std::mutex> locker(mtx);
 				sync.wait(locker);
@@ -207,12 +222,14 @@ namespace xnet
 
 		std::string ip_;
 		int port_ = 0;
-		int size_ = 0;
+		std::size_t size_ = 0;
 		std::vector<std::thread> workers_;
 		std::vector<proactor> proactors_;
 		accept_callback_t accept_callback_;
 		acceptor acceptor_;
 		int64_t mbox_index_ = 0;
 		std::vector<mailbox> mailboxs_;
+		callbck_t run_before_callbck_;
+		callbck_t run_end_callbck_;
 	};
 }

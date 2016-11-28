@@ -105,7 +105,7 @@ namespace xnet
 			static thread_local proactor *current_proactor_ = nullptr;
 			if (_proactor)
 				current_proactor_ = _proactor;
-			return _proactor;
+			return current_proactor_;
 		}
 		void do_start()
 		{

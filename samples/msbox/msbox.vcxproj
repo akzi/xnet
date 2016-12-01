@@ -18,29 +18,9 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\include\acceptor.hpp" />
-    <ClInclude Include="..\include\common\guard.hpp" />
-    <ClInclude Include="..\include\common\no_copy_able.hpp" />
-    <ClInclude Include="..\include\common\ypipe.hpp" />
-    <ClInclude Include="..\include\common\yqueue.hpp" />
-    <ClInclude Include="..\include\connection.hpp" />
-    <ClInclude Include="..\include\connector.hpp" />
-    <ClInclude Include="..\include\detail\detail.hpp" />
-    <ClInclude Include="..\include\detail\epoll.hpp" />
-    <ClInclude Include="..\include\detail\exceptions.hpp" />
-    <ClInclude Include="..\include\detail\functional.hpp" />
-    <ClInclude Include="..\include\detail\iocp.hpp" />
-    <ClInclude Include="..\include\detail\select.hpp" />
-    <ClInclude Include="..\include\detail\timer.hpp" />
-    <ClInclude Include="..\include\msgbox.hpp" />
-    <ClInclude Include="..\include\proactor.hpp" />
-    <ClInclude Include="..\include\proactor_pool.hpp" />
-    <ClInclude Include="..\include\xnet.hpp" />
-  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{63092D8C-CCB9-4B4C-876D-BEE43FC8E985}</ProjectGuid>
-    <RootNamespace>xnet</RootNamespace>
+    <ProjectGuid>{A57EB8D9-4D76-4176-B2E3-CB2982F31FAF}</ProjectGuid>
+    <RootNamespace>msbox</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -58,7 +38,7 @@
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v140</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
@@ -101,7 +81,6 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(SolutionDir)include</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -130,6 +109,9 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="msgbox.cpp" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

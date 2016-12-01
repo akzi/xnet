@@ -24,6 +24,7 @@ namespace iocp
 			e_send = 16,
 			e_idle = 32,
 			e_stop = 64,
+			e_notify = 128
 		};
 		int status_ = e_idle;
 

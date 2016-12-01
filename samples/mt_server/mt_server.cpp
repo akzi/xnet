@@ -15,13 +15,12 @@ int main()
 	std::mutex mtx;
 	std::vector<connection> connections;
 	std::list<std::size_t> index_;
+	connections.reserve(10000);
 
 	pp.bind("0.0.0.0", 9001).
-		set_size(1).
 		regist_accept_callback([&](connection &&conn) {
 		std::lock_guard<std::mutex> lg(mtx);
 		std::size_t index;
-		connections.reserve(100000);
 		connections.emplace_back(std::move(conn));
 		index = connections.size() - 1;
 
@@ -33,9 +32,7 @@ int main()
 				connections[id].close();
 				return;
 			}
-			//std::cout << data << std::endl;
 			//std::cout << std::this_thread::get_id() << std::endl;
-			//std::this_thread::sleep_for(std::chrono::nanoseconds(10));
 			connections[id].async_send(rsp, (int)strlen(rsp));
 			connections[id].async_recv_some();
 		});

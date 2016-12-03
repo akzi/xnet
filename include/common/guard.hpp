@@ -1,8 +1,6 @@
 #pragma once
 namespace xnet
 {
-namespace
-{
 	template<typename FUNC>
 	class guard
 	{
@@ -14,8 +12,8 @@ namespace
 		}
 		~guard()
 		{
-			if(func_)
-				func_();	
+			if (func_)
+				func_();
 		}
 		void reset()
 		{
@@ -24,5 +22,4 @@ namespace
 	private:
 		std::function<void()> func_;
 	};
-}
 }

@@ -21,9 +21,9 @@ int main()
 	{
 		conns.emplace(id, std::move(conn));
 		
-		conns[id].regist_recv_callback([id,&rsp, &conns](void *data, int len)
+		conns[id].regist_recv_callback([id,&rsp, &conns](char *data, std::size_t len)
 		{
-			if (len <= 0)
+			if (len == 0)
 			{
 				conns[id].close();
 				conns.erase(conns.find(id));
@@ -37,9 +37,9 @@ int main()
 			//if(conns.find(id) != conns.end())
 			//	conns.erase(conns.find(id));
 		});
-		conns[id].regist_send_callback([&](int len) 
+		conns[id].regist_send_callback([&](std::size_t len) 
 		{
-			if (len == -1)
+			if (len == 0)
 			{
 				conns[id].close();
 				conns.erase(conns.find(id));

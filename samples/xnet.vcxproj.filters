@@ -46,5 +46,26 @@
     <ClInclude Include="..\include\xnet.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\common\ypipe.hpp">
+      <Filter>include\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\common\yqueue.hpp">
+      <Filter>include\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\connector.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\msgbox.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\proactor.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\acceptor.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\connection.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

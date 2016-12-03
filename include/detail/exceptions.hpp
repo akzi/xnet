@@ -3,14 +3,9 @@ namespace xnet
 {
 	namespace detail
 	{
-		class socket_exception :std::exception
+		struct socket_exception :public std::exception
 		{
 		public:
-			socket_exception(int error_code)
-				:error_code_(error_code)
-			{
-				init_error_msg();
-			}
 			socket_exception(const char *file, 
 				const int line, int error_code)
 				:error_code_(error_code)
@@ -22,10 +17,6 @@ namespace xnet
 				error_str_ += " error_str:";
 				init_error_msg();
 				std::cout << error_str_.c_str() << std::endl;;
-			}
-			const char *str()
-			{
-				return error_str_.c_str();
 			}
 		private:
 			void init_error_msg()
@@ -46,6 +37,12 @@ namespace xnet
 					error_str_ = "strerror error";
 #endif
 			}
+
+			virtual char const* what() const override
+			{
+				return error_str_.c_str();
+			}
+
 			int error_code_ = 0;
 			std::string error_str_;
 		};

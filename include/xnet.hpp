@@ -60,7 +60,7 @@ namespace xnet
 			catch (std::exception& e)
 			{
 				std::cout << e.what() << std::endl;
-				send_callback_(-1);
+				send_callback_(0);
 			}
 		}
 
@@ -77,7 +77,7 @@ namespace xnet
 			catch (std::exception& e)
 			{
 				std::cout << e.what() << std::endl;
-				send_callback_(-1);
+				send_callback_(0);
 			}
 		}
 
@@ -89,9 +89,9 @@ namespace xnet
 				xnet_assert(impl_);
 				impl_->async_recv(len);
 			}
-			catch (detail::socket_exception &e)
+			catch (std::exception &e)
 			{
-				std::cout << e.str() << std::endl;
+				std::cout << e.what() << std::endl;
 				recv_callback_(NULL, 0);
 			}
 		}
@@ -102,9 +102,9 @@ namespace xnet
 				xnet_assert(impl_);
 				impl_->async_recv(0);
 			}
-			catch (detail::socket_exception &e)
+			catch (std::exception &e)
 			{
-				std::cout << e.str() << std::endl;
+				std::cout << e.what() << std::endl;
 				recv_callback_(NULL, 0);
 			}
 		}
@@ -181,9 +181,9 @@ namespace xnet
 			{
 				impl_->bind(ip, port);
 			}
-			catch (detail::socket_exception &e)
+			catch (std::exception &e)
 			{
-				std::cout << e.str() << std::endl;
+				std::cout << e.what() << std::endl;
 				return false;
 			}
 			return true;
@@ -195,9 +195,9 @@ namespace xnet
 				assert(impl_);
 				impl_->get_addr(ip, port);
 			}
-			catch (detail::socket_exception &e)
+			catch (std::exception &e)
 			{
-				std::cout << e.str() << std::endl;
+				std::cout << e.what() << std::endl;
 				return false;
 			}
 			return true;
@@ -269,12 +269,12 @@ namespace xnet
 			{
 				impl_->sync_connect(ip_, port_);
 			}
-			catch (detail::socket_exception &e)
+			catch (std::exception &e)
 			{
 				if (!failed_callback_)
 					throw e;
 				else
-					failed_callback_(e.str());
+					failed_callback_(e.what());
 			}
 		}
 		connector& bind_success_callback(success_callback_t callback)
@@ -371,9 +371,9 @@ namespace xnet
 			{
 				impl->run();
 			}
-			catch (detail::socket_exception& e)
+			catch (std::exception& e)
 			{
-				std::cout << e.str() << std::endl;
+				std::cout << e.what() << std::endl;
 				return false;
 			}
 			return true;

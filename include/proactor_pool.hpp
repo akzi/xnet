@@ -80,7 +80,7 @@ namespace xnet
 			if (!size_) 
 				size_ = std::thread::hardware_concurrency() * 2;
 			proactors_.reserve(size_);
-			for (int i = 1 ; i < size_; i++)
+			for (std::size_t i = 1 ; i < size_; i++)
 				proactors_.emplace_back();
 			acceptor_.regist_accept_callback(std::bind(&
 				proactor_pool::accept_callback, 
@@ -94,7 +94,7 @@ namespace xnet
 			std::condition_variable sync;
 			conn_boxs_.reserve(size_);
 			workers_.reserve(size_);
-			for (int i = 0; i < size_; ++i)
+			for (std::size_t i = 0; i < size_; ++i)
 			{
 				proactor &pro = proactors_[i];
 				workers_.emplace_back([&] {

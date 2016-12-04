@@ -59,7 +59,7 @@ namespace xnet
 			catch (std::exception& e)
 			{
 				std::cout << e.what() << std::endl;
-				send_callback_(-1);
+				send_callback_(0);
 			}
 		}
 
@@ -76,7 +76,7 @@ namespace xnet
 			catch (std::exception& e)
 			{
 				std::cout << e.what() << std::endl;
-				send_callback_(-1);
+				send_callback_(0);
 			}
 		}
 

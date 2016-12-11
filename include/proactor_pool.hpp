@@ -34,14 +34,22 @@ namespace xnet
 		{
 			return *current_proactor_store(nullptr);
 		}
+
+		proactor_pool &post(std::function<void()> &&handle, std::size_t index = 0)
+		{
+			if (index >= msgboxs_.size())
+				throw std::out_of_range("index >= msgboxs_.size()");
+			msgboxs_[index]->send(std::move(handle));
+			return *this;
+		}
 		proactor_pool &bind(const std::string &ip, int port)
 		{
 			is_bind_ = true;
 			ip_ = ip;
 			port_ = port;
-			xnet_assert(conn_boxs_.size());
 			if (is_start_)
 			{
+				xnet_assert(msgboxs_.size());
 				auto func = [this] {
 					acceptor_.reset(new xnet::acceptor(get_current_proactor().get_acceptor()));
 					acceptor_->regist_accept_callback(std::bind(&
@@ -49,7 +57,7 @@ namespace xnet
 						this, std::placeholders::_1));
 					xnet_assert(acceptor_->bind(ip_, port_));
 				};
-				conn_boxs_[0]->send(func);
+				msgboxs_[0]->send(func);
 			}
 			return *this;
 		}
@@ -98,7 +106,7 @@ namespace xnet
 		{
 			std::mutex mtx;
 			std::condition_variable sync;
-			conn_boxs_.reserve(size_);
+			msgboxs_.reserve(size_);
 			workers_.reserve(size_);
 			for (std::size_t i = 0; i < size_; ++i)
 			{
@@ -106,19 +114,19 @@ namespace xnet
 				workers_.emplace_back([&] 
 				{
 					current_proactor_store(&pro);
-					conn_boxs_.emplace_back(new msgbox_t(pro));
-					conn_boxs_.back()->regist_notify([&pro,this,i]
+					msgboxs_.emplace_back(new msgbox_t(pro));
+					msgboxs_.back()->regist_notify([&pro,this,i]
 					{
 						do
 						{
-							auto &msgbox = conn_boxs_[i];
+							auto &msgbox = msgboxs_[i];
 							auto item = msgbox->recv();
 							if (!item.first)
 								break;
 							item.second();
 						} while (true);
 					});
-					conn_boxs_.back()->regist_inited_callback([&] 
+					msgboxs_.back()->regist_inited_callback([&] 
 					{
 						std::unique_lock<std::mutex> locker(mtx);
 						sync.notify_one();
@@ -153,7 +161,7 @@ namespace xnet
 				get_current_proactor().regist_connection(_conn);
 				accept_callback_(std::move(_conn));
 			};
-			conn_boxs_[++mbox_index_ % conn_boxs_.size()]->send(std::move(func));
+			msgboxs_[++mbox_index_ % msgboxs_.size()]->send(std::move(func));
 		}
 		std::atomic_bool is_bind_ = false;
 		std::atomic_bool is_start_ = false;
@@ -168,7 +176,7 @@ namespace xnet
 		std::unique_ptr<acceptor> acceptor_;
 		
 		int64_t mbox_index_ = 0;
-		std::vector<std::unique_ptr<msgbox_t>> conn_boxs_;
+		std::vector<std::unique_ptr<msgbox_t>> msgboxs_;
 
 		callbck_t run_before_callbck_;
 		callbck_t run_end_callbck_;

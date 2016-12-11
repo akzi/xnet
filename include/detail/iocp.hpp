@@ -183,8 +183,8 @@ namespace iocp
 		{
 			if (bind_iocp_)
 				return;
-			xnet_assert(::CreateIoCompletionPort((HANDLE)socket_, iocp_, 0, 0) == iocp_);
 			bind_iocp_ = true;
+			xnet_assert(::CreateIoCompletionPort((HANDLE)socket_, iocp_, 0, 0) == iocp_);
 		}
 		friend class proactor_impl;
 		void recv_callbak(bool status)
@@ -588,13 +588,10 @@ namespace iocp
 				xnet_assert(WSAGetLastError() == WSA_IO_PENDING);
 			}
 		}
-		void continue_recv(overLapped_context * overlapped, DWORD bytes)
+		void do_recv(overLapped_context * overlapped, DWORD bytes)
 		{
 			DWORD dwBytes = 0,
 				dwFlags = 0;
-
-			overlapped->recv_pos_ += bytes;
-
 			overlapped->WSABuf_.buf =
 				(char*)overlapped->buffer_.data() +
 				overlapped->recv_pos_;
@@ -652,13 +649,18 @@ namespace iocp
 			if(overlapped->status_ == overLapped_context::e_recv)
 			{
 				overlapped->recv_bytes_ += bytes;
-				if(overlapped->to_recv_len_ > bytes)
-					continue_recv(overlapped, bytes);
-				overlapped->connection_->recv_callbak(!!bytes);
+				overlapped->recv_pos_ += bytes;
+				if (overlapped->to_recv_len_ > overlapped->recv_bytes_ && bytes > 0)
+					do_recv(overlapped, bytes);
+				else if(bytes <= 0 || overlapped->to_recv_len_ <= overlapped->recv_bytes_)
+				{
+					overlapped->connection_->recv_callbak(!!bytes);
+				}
+
 			}
 			else if(overlapped->status_ == overLapped_context::e_send)
 			{
-				if(overlapped->WSABuf_.len > bytes)
+				if(overlapped->WSABuf_.len > bytes  && bytes > 0)
 					continue_send(overlapped, bytes);
 				else
 					overlapped->connection_->send_callback(true);

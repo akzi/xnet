@@ -1,11 +1,10 @@
 #pragma once
 namespace xnet
 {
-	template<typename FUNC>
 	class guard
 	{
 	public:
-		guard(FUNC &&func)
+		guard(std::function<void()> &&func)
 			:func_(std::move(func))
 		{
 

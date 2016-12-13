@@ -20,7 +20,7 @@ namespace xnet
 		{
 			close();
 		}
-		void async_connect(const std::string &ip, int port)
+		bool async_connect(const std::string &ip, int port)
 		{
 			ip_ = ip;
 			port_ = port;
@@ -30,11 +30,11 @@ namespace xnet
 			}
 			catch (std::exception &e)
 			{
-				if (!failed_callback_)
-					throw e;
-				else
-					failed_callback_(e.what());
+				last_error_str_ = e.what();
+				std::cout << last_error_str_ << std::endl;
+				return false;
 			}
+			return true;
 		}
 		connector& bind_success_callback(success_callback_t callback)
 		{
@@ -65,6 +65,10 @@ namespace xnet
 				impl_ = nullptr;
 			}
 		}
+		std::string get_last_error()
+		{
+			return last_error_str_;
+		}
 	private:
 		friend proactor;
 
@@ -94,6 +98,7 @@ namespace xnet
 		connector()
 		{
 		}
+		std::string last_error_str_;
 		std::function<void(connection &&)> success_callback_;
 		failed_callback_t failed_callback_;
 		detail::connector_impl *impl_ = nullptr;

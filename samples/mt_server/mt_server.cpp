@@ -17,8 +17,7 @@ int main()
 	std::list<std::size_t> index_;
 	connections.reserve(10000);
 
-	pp.bind("0.0.0.0", 9001).
-		regist_accept_callback([&](connection &&conn) {
+	pp.regist_accept_callback([&](connection &&conn) {
 		std::lock_guard<std::mutex> lg(mtx);
 		std::size_t index;
 		connections.emplace_back(std::move(conn));
@@ -46,9 +45,8 @@ int main()
 		});
 		connections[index].async_recv_some();
 
-	});
-
-	pp.start();
+	}).start();
+	pp.bind("0.0.0.0", 9001);
 	getchar();
 	pp.stop();
 

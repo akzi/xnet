@@ -16,7 +16,6 @@
 #include <cstring>
 #include <atomic>
 #include <malloc.h>
-#include "../common/guard.hpp"
 #include "../common/no_copy_able.hpp"
 #include "timer.hpp"
 #include "../common/yqueue.hpp"

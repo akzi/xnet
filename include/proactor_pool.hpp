@@ -163,8 +163,8 @@ namespace xnet
 			};
 			msgboxs_[++mbox_index_ % msgboxs_.size()]->send(std::move(func));
 		}
-		std::atomic_bool is_bind_ = false;
-		std::atomic_bool is_start_ = false;
+		std::atomic_bool is_bind_ { false };
+		std::atomic_bool is_start_ { false };
 		std::string ip_;
 		int port_ = 0;
 		std::size_t size_ = 0;

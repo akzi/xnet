@@ -9,10 +9,8 @@ namespace xnet
 		typedef std::function<void()> notify_callback_t;
 		msgbox(proactor &pro)
 			:proactor_(pro),
-			acceptor_(std::move(proactor_.get_acceptor())),
-			connector_(std::move(proactor_.get_connector()))
-
-
+			acceptor_(std::move(pro.get_acceptor())),
+			connector_(std::move(pro.get_connector()))
 		{
 			init();
 		}
@@ -93,8 +91,8 @@ namespace xnet
 		std::string ip_;
 		int port_;
 		proactor &proactor_;
-		connector connector_;
 		acceptor acceptor_;
+		connector connector_;
 		connection signal_sender_;
 		connection signal_receiver_;
 

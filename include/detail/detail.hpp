@@ -25,7 +25,7 @@
 #undef FD_SETSIZE
 #define FD_SETSIZE      1024
 #ifndef IOCP
-#define IOCP 0
+#define IOCP 1
 #endif
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <winsock2.h>

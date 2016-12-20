@@ -664,10 +664,13 @@ namespace select
 			io_context &io_ctx = *fd_ctx.recv_ctx_;
 			if (io_ctx.status_ == io_context::e_recv)
 			{
+				std::size_t len = io_ctx.to_recv_? 
+					io_ctx.to_recv_: io_ctx.buffer_.size();
+
 				auto bytes = ::recv(
 					io_ctx.socket_,
 					(char*)io_ctx.buffer_.data() + io_ctx.recv_bytes_,
-					(int)(io_ctx.buffer_.size() - io_ctx.recv_bytes_), 0);
+					(int)(len - io_ctx.recv_bytes_), 0);
 
 				if (bytes <= 0)
 				{

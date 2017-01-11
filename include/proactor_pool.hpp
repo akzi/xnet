@@ -75,7 +75,11 @@ namespace xnet
 			for (auto &itr : proactors_)
 				itr.stop();
 			for (auto &itr : workers_)
-				itr.join();
+			{
+				if (itr.joinable())
+					itr.join();
+			}
+				
 		}
 		proactor_pool &regist_accept_callback(accept_callback_t callback )
 		{

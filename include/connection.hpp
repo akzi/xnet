@@ -63,7 +63,7 @@ namespace xnet
 			}
 		}
 
-		void async_send(const char *data, int len)
+		void async_send(const char *data, uint32_t len)
 		{
 			xnet_assert(len);
 			xnet_assert(data);
@@ -71,7 +71,7 @@ namespace xnet
 
 			try
 			{
-				impl_->async_send({ data, (uint32_t)len });
+				impl_->async_send({ data, len});
 			}
 			catch (std::exception& e)
 			{

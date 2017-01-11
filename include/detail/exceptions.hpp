@@ -38,7 +38,7 @@ namespace xnet
 #endif
 			}
 
-			virtual char const* what() const override
+			virtual char const* what() const throw()
 			{
 				return error_str_.c_str();
 			}

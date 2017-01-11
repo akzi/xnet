@@ -3,7 +3,7 @@
 namespace xnet
 {
 	template<typename T>
-	class msgbox
+	class msgbox :xutil::no_copy_able
 	{
 	public:
 		typedef std::function<void()> notify_callback_t;
@@ -43,7 +43,7 @@ namespace xnet
 	private:
 		void init()
 		{
-			ypipe_.reset(new ypipe<T, 128>);
+			ypipe_.reset(new xutil::ypipe<T, 128>);
 			xnet_assert(acceptor_.bind("127.0.0.1", 0));
 			xnet_assert(acceptor_.get_addr(ip_, port_));
 			xnet_assert(!recv().first);
@@ -99,6 +99,6 @@ namespace xnet
 		notify_callback_t callback_handle_;
 		notify_callback_t inited_callback_handle_;
 		std::mutex mtx_;
-		std::unique_ptr<ypipe<T, 128>> ypipe_;
+		std::unique_ptr<xutil::ypipe<T, 128>> ypipe_;
 	};
 }

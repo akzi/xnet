@@ -1,6 +1,6 @@
 namespace xnet
 {
-	class acceptor : public no_copy_able
+	class acceptor : public xutil::no_copy_able
 	{
 	public:
 		typedef std::function<void(connection &&) > accept_callback_t;

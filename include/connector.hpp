@@ -1,7 +1,7 @@
 #pragma once
 namespace xnet
 {
-	class connector : no_copy_able
+	class connector : xutil::no_copy_able
 	{
 	public:
 		typedef std::function<void(connection &&)> success_callback_t;

@@ -1,7 +1,7 @@
 namespace xnet
 {
 	class proactor;
-	class connection :public no_copy_able
+	class connection :public xutil::no_copy_able
 	{
 	public:
 		typedef std::function<void(char*, std::size_t)> recv_callback_t;

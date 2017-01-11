@@ -1,4 +1,6 @@
 #pragma once
+#include "../../xutil/include/ypipe.hpp"
+#include "../../xutil/include/no_copy_able.hpp"
 #include "detail/detail.hpp"
 #include "connection.hpp"
 #include "acceptor.hpp"

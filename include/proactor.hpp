@@ -1,7 +1,7 @@
 #pragma once
 namespace xnet
 {
-	class proactor : public no_copy_able
+	class proactor : public xutil::no_copy_able
 	{
 	public:
 		typedef timer_manager::timer_id timer_id;

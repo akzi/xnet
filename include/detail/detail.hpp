@@ -16,10 +16,7 @@
 #include <cstring>
 #include <atomic>
 #include <malloc.h>
-#include "../common/no_copy_able.hpp"
 #include "timer.hpp"
-#include "../common/yqueue.hpp"
-#include "../common/ypipe.hpp"
 #define SELECT 1
 #if defined _MSC_VER
 #undef FD_SETSIZE

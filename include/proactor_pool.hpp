@@ -7,7 +7,7 @@
 #include <list>
 namespace xnet
 {
-	class proactor_pool
+	class proactor_pool :xutil::no_copy_able
 	{
 		
 	public:

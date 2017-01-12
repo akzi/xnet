@@ -13,6 +13,8 @@ namespace xnet
 	public:
 		typedef std::function<void(connection &&) > accept_callback_t;
 		typedef std::function<void(void)> callbck_t;
+		using msgbox_t = msgbox<std::function<void()>>;
+
 		proactor_pool(std::size_t io_threads = std::thread::hardware_concurrency())
 			:size_(io_threads)
 		{
@@ -32,9 +34,12 @@ namespace xnet
 		}
 		proactor &get_current_proactor()
 		{
-			return *current_proactor_store(nullptr);
+			return *current_proactor_store();
 		}
-
+		msgbox_t &get_current_msgbox()
+		{
+			return *current_msgbox_store();
+		}
 		proactor_pool &post(std::function<void()> &&handle, std::size_t index = 0)
 		{
 			if (index >= msgboxs_.size())
@@ -97,8 +102,7 @@ namespace xnet
 			return *this;
 		}
 	private:
-		using msgbox_t = msgbox<std::function<void()>>;
-		proactor* current_proactor_store(proactor *_proactor)
+		proactor* current_proactor_store(proactor *_proactor = nullptr)
 		{
 			static thread_local proactor *current_proactor_ = nullptr;
 			if (_proactor)
@@ -106,6 +110,14 @@ namespace xnet
 			return current_proactor_;
 		}
 		
+		msgbox_t *current_msgbox_store(msgbox_t *_msgbox = nullptr)
+		{
+			static thread_local msgbox_t *msgbox = nullptr;
+			if (_msgbox)
+				msgbox = _msgbox;
+			return msgbox;
+		}
+
 		void start_proactors()
 		{
 			std::mutex mtx;
@@ -135,6 +147,7 @@ namespace xnet
 						std::unique_lock<std::mutex> locker(mtx);
 						sync.notify_one();
 					});
+					current_msgbox_store(msgboxs_.back().get());
 					if(run_before_callbck_)
 						run_before_callbck_();
 					pro.run();

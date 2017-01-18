@@ -59,9 +59,10 @@ namespace xnet
 			connector_.init(impl->get_connector());
 			return std::move(connector_);
 		}
-		timer_id set_timer(uint32_t timeout, std::function<bool()> func)
+		template<typename T>
+		timer_id set_timer(uint32_t timeout, T &&func)
 		{
-			return impl->set_timer(timeout, func);
+			return impl->set_timer(timeout, std::forward<T>(func));
 		}
 		void cancel_timer(timer_id id)
 		{

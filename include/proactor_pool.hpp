@@ -32,6 +32,11 @@ namespace xnet
 				throw std::out_of_range("index >= proactors_.size()");
 			return proactors_[index];
 		}
+		template<typename T>
+		std::size_t set_timer(uint32_t timeout, T &&func)
+		{
+			return get_current_proactor().set_timer(timeout, std::forward<T>(func));
+		}
 		proactor &get_current_proactor()
 		{
 			return *current_proactor_store();

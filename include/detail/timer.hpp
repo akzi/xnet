@@ -69,15 +69,16 @@ namespace xnet
 			return (caster(itr->first.time_since_epoch()) - 
 				caster(now.time_since_epoch())).count();
 		}
+		template<typename T>
 		timer_id set_timer(
 			std::size_t timeout, 
-			std::function<bool()> timer_callback)
+			T &&timer_callback)
 		{
 			auto timer_point = std::chrono::high_resolution_clock::now()
 				+ std::chrono::high_resolution_clock::
 				duration(std::chrono::milliseconds(timeout));
 			xtimer timer;
-			timer.timer_callback_ = timer_callback;
+			timer.timer_callback_ = std::forward<T>(timer_callback);
 			timer.timeout_ = timeout;
 			timer.timer_id_ = ++next_id_;
 			insert(std::make_pair(timer_point, timer));

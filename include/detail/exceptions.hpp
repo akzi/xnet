@@ -14,6 +14,8 @@ namespace xnet
 				error_str_ += file;
 				error_str_ += " LINE: ";
 				error_str_ += std::to_string(line);
+				error_str_ += " error_code:";
+				error_str_ += std::to_string(error_code_);
 				error_str_ += " error_str:";
 				init_error_msg();
 				std::cout << error_str_.c_str() << std::endl;;

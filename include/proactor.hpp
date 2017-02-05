@@ -26,15 +26,7 @@ namespace xnet
 		bool run()
 		{
 			xnet_assert(impl);
-			try
-			{
-				impl->run();
-			}
-			catch (std::exception& e)
-			{
-				std::cout << e.what() << std::endl;
-				return false;
-			}
+			impl->run();
 			return true;
 		}
 		void stop()

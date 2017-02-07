@@ -52,15 +52,7 @@ namespace xnet
 		{
 			xnet_assert(impl_);
 			xnet_assert(buffer.size());
-			try
-			{
-				impl_->async_send(std::move(buffer));
-			}
-			catch (std::exception& e)
-			{
-				std::cout << e.what() << std::endl;
-				send_callback_(0);
-			}
+			impl_->async_send(std::move(buffer));
 		}
 
 		void async_send(const char *data, uint32_t len)
@@ -68,44 +60,19 @@ namespace xnet
 			xnet_assert(len);
 			xnet_assert(data);
 			xnet_assert(impl_);
-
-			try
-			{
-				impl_->async_send({ data, len});
-			}
-			catch (std::exception& e)
-			{
-				std::cout << e.what() << std::endl;
-				send_callback_(0);
-			}
+			impl_->async_send({ data, len});
 		}
 
 		void async_recv(std::size_t len)
 		{
-			try
-			{
-				xnet_assert(len);
-				xnet_assert(impl_);
-				impl_->async_recv(len);
-			}
-			catch (std::exception &e)
-			{
-				std::cout << e.what() << std::endl;
-				recv_callback_(NULL, 0);
-			}
+			xnet_assert(len);
+			xnet_assert(impl_);
+			impl_->async_recv(len);
 		}
 		void async_recv_some()
 		{
-			try
-			{
-				xnet_assert(impl_);
-				impl_->async_recv(0);
-			}
-			catch (std::exception &e)
-			{
-				std::cout << e.what() << std::endl;
-				recv_callback_(NULL, 0);
-			}
+			xnet_assert(impl_);
+			impl_->async_recv(0);
 		}
 		void close()
 		{
@@ -145,7 +112,8 @@ namespace xnet
 				send_callback_(len);
 			});
 		}
-		proactor *pro_;
+		std::size_t send_error_timer_id_ = 0;
+		std::size_t recv_error_timer_id_ = 0;
 		detail::connection_impl *impl_ = NULL;
 		send_callback_t send_callback_;
 		recv_callback_t  recv_callback_;

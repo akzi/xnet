@@ -638,10 +638,10 @@ namespace epoll
 
 			return acceptor;
 		}
-		timer_manager::timer_id set_timer(std::size_t timeout,
-			std::function<bool()> timer_callback)
+		template<typename T>
+		timer_id set_timer(std::size_t timeout, T &&timer_callback)
 		{
-			return timer_manager_.set_timer(timeout, timer_callback);
+			return timer_manager_.set_timer(timeout, std::forward<T>(timer_callback));
 		}
 		void cancel_timer(timer_manager::timer_id id)
 		{

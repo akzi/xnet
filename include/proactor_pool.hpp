@@ -37,6 +37,10 @@ namespace xnet
 		{
 			return get_current_proactor().set_timer(timeout, std::forward<T>(func));
 		}
+		void cancel_timer(proactor::timer_id id)
+		{
+			get_current_proactor().cancel_timer(id);
+		}
 		proactor &get_current_proactor()
 		{
 			return *current_proactor_store();
